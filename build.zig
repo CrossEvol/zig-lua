@@ -54,6 +54,12 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const vm_mod = b.addModule("vm", .{
+        .root_source_file = b.path("src/vm/root.zig"),
+        .target = target,
+        .imports = &.{},
+    });
+
     // Main executable
     const exe = b.addExecutable(.{
         .name = "zig_lua",
@@ -163,5 +169,33 @@ pub fn build(b: *std.Build) void {
 
     if (b.args) |args| {
         run_ch02.addArgs(args);
+    }
+
+    // Chapter 3 executable
+    const ch03_exe = b.addExecutable(.{
+        .name = "ch03",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/ch03-main.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "binchunk", .module = binchunk_mod },
+                .{ .name = "state", .module = state_mod },
+                .{ .name = "vm", .module = vm_mod },
+            },
+        }),
+    });
+
+    b.installArtifact(ch03_exe);
+
+    const run_ch03 = b.addRunArtifact(ch03_exe);
+    const run_ch03_step = b.step("ch03", "Run chapter 3 application");
+    run_ch03_step.dependOn(&run_ch03.step);
+
+    // Make sure ch03 step also installs the executable
+    run_ch03_step.dependOn(b.getInstallStep());
+
+    if (b.args) |args| {
+        run_ch03.addArgs(args);
     }
 }
