@@ -24,8 +24,6 @@ pub fn main() !void {
     var stdout_file_writer: Io.File.Writer = .init(.stdout(), io, &stdout_buffer);
     const stdout_writer = &stdout_file_writer.interface;
 
-    try zig_lua.printAnotherMessage(stdout_writer);
-
     try stdout_writer.flush(); // Don't forget to flush!
 }
 
@@ -46,4 +44,8 @@ test "fuzz example" {
         }
     };
     try std.testing.fuzz(Context{}, Context.testOne, .{});
+}
+
+test "add test" {
+    try std.testing.expect(zig_lua.add(3, 7) == 10);
 }

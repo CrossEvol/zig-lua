@@ -40,44 +40,28 @@ pub fn build(b: *std.Build) void {
         // which requires us to specify a target.
         .target = target,
     });
+    // Create modules for different components
+    const state_mod = b.addModule("state", .{
+        .root_source_file = b.path("src/state/root.zig"),
+        .target = target,
+    });
 
-    // Here we define an executable. An executable needs to have a root module
-    // which needs to expose a `main` function. While we could add a main function
-    // to the module defined above, it's sometimes preferable to split business
-    // logic and the CLI into two separate modules.
-    //
-    // If your goal is to create a Zig library for others to use, consider if
-    // it might benefit from also exposing a CLI tool. A parser library for a
-    // data serialization format could also bundle a CLI syntax checker, for example.
-    //
-    // If instead your goal is to create an executable, consider if users might
-    // be interested in also being able to embed the core functionality of your
-    // program in their own executable in order to avoid the overhead involved in
-    // subprocessing your CLI tool.
-    //
-    // If neither case applies to you, feel free to delete the declaration you
-    // don't need and to put everything under a single module.
+    const binchunk_mod = b.addModule("binchunk", .{
+        .root_source_file = b.path("src/binchunk/root.zig"),
+        .target = target,
+        .imports = &.{
+            .{ .name = "state", .module = state_mod },
+        },
+    });
+
+    // Main executable
     const exe = b.addExecutable(.{
         .name = "zig_lua",
         .root_module = b.createModule(.{
-            // b.createModule defines a new module just like b.addModule but,
-            // unlike b.addModule, it does not expose the module to consumers of
-            // this package, which is why in this case we don't have to give it a name.
             .root_source_file = b.path("src/main.zig"),
-            // Target and optimization levels must be explicitly wired in when
-            // defining an executable or library (in the root module), and you
-            // can also hardcode a specific target for an executable or library
-            // definition if desireable (e.g. firmware for embedded devices).
             .target = target,
             .optimize = optimize,
-            // List of modules available for import in source files part of the
-            // root module.
             .imports = &.{
-                // Here "zig_lua" is the name you will use in your source code to
-                // import this module (e.g. `@import("zig_lua")`). The name is
-                // repeated because you are allowed to rename your imports, which
-                // can be extremely useful in case of collisions (which can happen
-                // importing modules from different packages).
                 .{ .name = "zig_lua", .module = mod },
             },
         }),
@@ -153,4 +137,31 @@ pub fn build(b: *std.Build) void {
     //
     // Lastly, the Zig build system is relatively simple and self-contained,
     // and reading its source code will allow you to master it.
+
+    // Chapter 2 executable
+    const ch02_exe = b.addExecutable(.{
+        .name = "ch02",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/ch02-main.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "binchunk", .module = binchunk_mod },
+                .{ .name = "state", .module = state_mod },
+            },
+        }),
+    });
+
+    b.installArtifact(ch02_exe);
+
+    const run_ch02 = b.addRunArtifact(ch02_exe);
+    const run_ch02_step = b.step("ch02", "Run chapter 2 application");
+    run_ch02_step.dependOn(&run_ch02.step);
+
+    // Make sure ch02 step also installs the executable
+    run_ch02_step.dependOn(b.getInstallStep());
+
+    if (b.args) |args| {
+        run_ch02.addArgs(args);
+    }
 }
