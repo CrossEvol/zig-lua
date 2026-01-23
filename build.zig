@@ -40,12 +40,20 @@ pub fn build(b: *std.Build) void {
         // which requires us to specify a target.
         .target = target,
     });
+
     // Create modules for different components
+    const api_mod = b.addModule("api", .{
+        .root_source_file = b.path("src/api/root.zig"),
+        .target = target,
+        .imports = &.{},
+    });
     const state_mod = b.addModule("state", .{
         .root_source_file = b.path("src/state/root.zig"),
         .target = target,
+        .imports = &.{
+            .{ .name = "api", .module = api_mod },
+        },
     });
-
     const binchunk_mod = b.addModule("binchunk", .{
         .root_source_file = b.path("src/binchunk/root.zig"),
         .target = target,
@@ -53,7 +61,6 @@ pub fn build(b: *std.Build) void {
             .{ .name = "state", .module = state_mod },
         },
     });
-
     const vm_mod = b.addModule("vm", .{
         .root_source_file = b.path("src/vm/root.zig"),
         .target = target,
@@ -197,5 +204,34 @@ pub fn build(b: *std.Build) void {
 
     if (b.args) |args| {
         run_ch03.addArgs(args);
+    }
+
+    // Chapter 4 executable
+    const ch04_exe = b.addExecutable(.{
+        .name = "ch04",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/ch04-main.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "binchunk", .module = binchunk_mod },
+                .{ .name = "state", .module = state_mod },
+                .{ .name = "vm", .module = vm_mod },
+                .{ .name = "api", .module = api_mod },
+            },
+        }),
+    });
+
+    b.installArtifact(ch04_exe);
+
+    const run_ch04 = b.addRunArtifact(ch04_exe);
+    const run_ch04_step = b.step("ch04", "Run chapter 4 application");
+    run_ch04_step.dependOn(&run_ch04.step);
+
+    // Make sure ch04 step also installs the executable
+    run_ch04_step.dependOn(b.getInstallStep());
+
+    if (b.args) |args| {
+        run_ch04.addArgs(args);
     }
 }
