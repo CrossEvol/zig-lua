@@ -1,1 +1,4 @@
-pub const LuaType = @import("consts.zig").LuaType;
+const consts = @import("consts.zig");
+pub const LuaType = consts.LuaType;
+pub const ArithOp = consts.ArithOp;
+pub const CompareOp = consts.CompareOp;

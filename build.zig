@@ -47,11 +47,17 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .imports = &.{},
     });
+    const number_mod = b.addModule("number", .{
+        .root_source_file = b.path("src/number/root.zig"),
+        .target = target,
+        .imports = &.{},
+    });
     const state_mod = b.addModule("state", .{
         .root_source_file = b.path("src/state/root.zig"),
         .target = target,
         .imports = &.{
             .{ .name = "api", .module = api_mod },
+            .{ .name = "number", .module = number_mod },
         },
     });
     const binchunk_mod = b.addModule("binchunk", .{
@@ -233,5 +239,34 @@ pub fn build(b: *std.Build) void {
 
     if (b.args) |args| {
         run_ch04.addArgs(args);
+    }
+
+    // Chapter 5 executable
+    const ch05_exe = b.addExecutable(.{
+        .name = "ch05",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/ch05-main.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "binchunk", .module = binchunk_mod },
+                .{ .name = "state", .module = state_mod },
+                .{ .name = "vm", .module = vm_mod },
+                .{ .name = "api", .module = api_mod },
+            },
+        }),
+    });
+
+    b.installArtifact(ch05_exe);
+
+    const run_ch05 = b.addRunArtifact(ch05_exe);
+    const run_ch05_step = b.step("ch05", "Run chapter 5 application");
+    run_ch05_step.dependOn(&run_ch05.step);
+
+    // Make sure ch05 step also installs the executable
+    run_ch05_step.dependOn(b.getInstallStep());
+
+    if (b.args) |args| {
+        run_ch05.addArgs(args);
     }
 }

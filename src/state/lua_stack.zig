@@ -19,6 +19,9 @@ pub const LuaStack = struct {
     }
 
     pub fn deinit(self: *LuaStack) void {
+        for (0..self.top) |i| {
+            self.slots.items[i].deinit(self.allocator);
+        }
         self.slots.deinit(self.allocator);
     }
 
@@ -52,8 +55,7 @@ pub const LuaStack = struct {
             return @intCast(idx);
         }
 
-        const t: i32 = @intCast(self.top);
-        return @intCast(idx + t + 1);
+        return @intCast(idx + @as(i32, @intCast(self.top)) + 1);
     }
 
     pub fn isValid(self: *LuaStack, idx: i32) bool {
@@ -72,6 +74,7 @@ pub const LuaStack = struct {
     pub fn set(self: *LuaStack, idx: i32, val: LuaValue) void {
         const absIdx = self.absIndex(idx);
         if (absIdx > 0 and absIdx <= self.top) {
+            self.slots.items[absIdx - 1].deinit(self.allocator);
             self.slots.items[absIdx - 1] = val;
             return;
         }

@@ -1,13 +1,27 @@
 const std = @import("std");
+const math = std.math;
 
-const LuaType = @import("api").LuaType;
+const api = @import("api");
+const LuaType = api.LuaType;
+const ArithOp = api.ArithOp;
+const CompareOp = api.CompareOp;
+const number = @import("number");
 
-const convertToBoolean = @import("lua_value.zig").convertToBoolean;
+const api_arith = @import("api_arith.zig");
+const operators = api_arith.operators;
+const _arith = api_arith._arith;
+const api_compare = @import("api_compare.zig");
+const _eq = api_compare._eq;
+const _lt = api_compare._lt;
+const _le = api_compare._le;
 const LuaStack = @import("lua_stack.zig").LuaStack;
+const LuaValueNSP = @import("lua_value.zig");
+const convertToBoolean = LuaValueNSP.convertToBoolean;
+const convertToInteger = LuaValueNSP.convertToInteger;
+const convertToFloat = LuaValueNSP.convertToFloat;
 const typeof = @import("lua_value.zig").typeOf;
 
 const string = []const u8;
-
 pub const LuaState = struct {
     stack: LuaStack,
     allocator: std.mem.Allocator,
@@ -139,10 +153,7 @@ pub const LuaState = struct {
     // http://www.lua.org/manual/5.3/manual.html#lua_tointegerx
     pub fn toIntegerX(self: *LuaState, idx: i32) struct { i64, bool } {
         const val = self.stack.get(idx);
-        return switch (val) {
-            .int64 => |x| .{ x, true },
-            else => .{ 0, false },
-        };
+        return convertToInteger(val);
     }
 
     // [-0, +0, –]
@@ -157,11 +168,7 @@ pub const LuaState = struct {
     // http://www.lua.org/manual/5.3/manual.html#lua_tonumberx
     pub fn toNumberX(self: *LuaState, idx: i32) struct { f64, bool } {
         const val = self.stack.get(idx);
-        return switch (val) {
-            .float64 => |x| .{ x, true },
-            .int64 => |x| .{ @floatFromInt(x), true },
-            else => .{ 0, false },
-        };
+        return convertToFloat(val);
     }
 
     // [-0, +0, m]
@@ -174,18 +181,20 @@ pub const LuaState = struct {
 
     pub fn toStringX(self: *LuaState, idx: i32) struct { string, bool } {
         const val = self.stack.get(idx);
-        return switch (val) {
-            .string => |x| .{ x, true },
+        switch (val) {
+            .string => |x| return .{ x, true },
             .int64 => |x| {
                 const s = std.fmt.allocPrint(self.allocator, "{d}", .{x}) catch @panic("allocation failed");
+                self.stack.set(idx, .{ .string = s });
                 return .{ s, true };
             },
             .float64 => |x| {
                 const s = std.fmt.allocPrint(self.allocator, "{d}", .{x}) catch @panic("allocation failed");
+                self.stack.set(idx, .{ .string = s });
                 return .{ s, true };
             },
-            else => .{ "", false },
-        };
+            else => return .{ "", false },
+        }
     }
 
     /// **************************  api_stack  **************************
@@ -213,7 +222,8 @@ pub const LuaState = struct {
     // http://www.lua.org/manual/5.3/manual.html#lua_pop
     pub fn pop(self: *LuaState, n: usize) void {
         for (0..n) |_| {
-            _ = self.stack.pop();
+            var val = self.stack.pop();
+            val.deinit(self.allocator);
         }
     }
 
@@ -221,14 +231,14 @@ pub const LuaState = struct {
     // http://www.lua.org/manual/5.3/manual.html#lua_copy
     pub fn copy(self: *LuaState, from_idx: i32, to_idx: i32) void {
         const val = self.stack.get(from_idx);
-        self.stack.set(to_idx, val);
+        self.stack.set(to_idx, val.clone(self.allocator));
     }
 
     // [-0, +1, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_pushvalue
     pub fn pushValue(self: *LuaState, idx: i32) void {
         const val = self.stack.get(idx);
-        self.stack.push(val);
+        self.stack.push(val.clone(self.allocator));
     }
 
     // [-1, +0, –]
@@ -254,8 +264,7 @@ pub const LuaState = struct {
     // [-0, +0, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_rotate
     pub fn rotate(self: *LuaState, idx: i32, n: i32) void {
-        const top: i32 = @intCast(self.stack.top);
-        const t: i32 = top - 1; // end of stack segment being rotated
+        const t: i32 = @as(i32, @intCast(self.stack.top)) - 1; // end of stack segment being rotated
         const p: i32 = @intCast(self.stack.absIndex(idx) - 1); // start of segment
         const m = if (n > 0) t - n else p - n - 1; // end of prefix
         self.stack.reverse(p, m); // reverse the prefix with length 'n'
@@ -271,13 +280,12 @@ pub const LuaState = struct {
             @panic("stack underflow!");
         }
 
-        const t: i32 = @intCast(self.stack.top);
-        const nt: i32 = @intCast(new_top);
-        const n = t - nt;
+        const n = @as(i32, @intCast(self.stack.top)) - @as(i32, @intCast(new_top));
         if (n > 0) {
             var i: i32 = 0;
             while (i < n) : (i += 1) {
-                _ = self.stack.pop();
+                var val = self.stack.pop();
+                val.deinit(self.allocator);
             }
         } else if (n < 0) {
             var i: i32 = 0;
@@ -312,6 +320,84 @@ pub const LuaState = struct {
     // [-0, +1, m]
     // http://www.lua.org/manual/5.3/manual.html#lua_pushstring
     pub fn pushString(self: *LuaState, s: string) void {
-        self.stack.push(.{ .string = s });
+        const dupe = self.allocator.dupe(u8, s) catch @panic("allocation failed");
+        self.stack.push(.{ .string = dupe });
+    }
+
+    /// **************************  api_arith  **************************
+
+    // [-(2|1), +1, e]
+    // http://www.lua.org/manual/5.3/manual.html#l
+    pub fn arith(self: *LuaState, op: ArithOp) void {
+        var b = self.stack.pop();
+        defer b.deinit(self.allocator);
+        var a = if (op != .lua_op_unm and op != .lua_op_bnot) self.stack.pop() else b;
+        defer if (op != .lua_op_unm and op != .lua_op_bnot) a.deinit(self.allocator);
+
+        const operator = operators[@intFromEnum(op)];
+        const result = _arith(a, b, operator);
+        if (result != .nil) {
+            self.stack.push(result);
+        } else {
+            @panic("arithmetic error!");
+        }
+    }
+
+    /// **************************  api_compare  **************************
+
+    // [-0, +0, e]
+    // http://www.lua.org/manual/5.3/manual.html#lua_compare
+    pub fn compare(self: *LuaState, idx1: i32, idx2: i32, op: CompareOp) bool {
+        if (!self.stack.isValid(idx1) or !self.stack.isValid(idx2)) {
+            return false;
+        }
+
+        const a = self.stack.get(idx1);
+        const b = self.stack.get(idx2);
+        return switch (op) {
+            .lua_op_eq => _eq(a, b),
+            .lua_op_lt => _lt(a, b),
+            .lua_op_le => _le(a, b),
+            // else => @panic("invalid compare op!"),
+        };
+    }
+
+    /// **************************  api_misc  **************************
+
+    // [-0, +1, e]
+    // http://www.lua.org/manual/5.3/manual.html#lua_len
+    pub fn len(self: *LuaState, idx: i32) void {
+        const val = self.stack.get(idx);
+        switch (val) {
+            .string => |s| {
+                self.stack.push(.{ .int64 = @intCast(s.len) });
+            },
+            else => @panic("length error!"),
+        }
+    }
+
+    // [-n, +1, e]
+    // http://www.lua.org/manual/5.3/manual.html#lua_concat
+    pub fn concat(self: *LuaState, n: i32) void {
+        if (n == 0) {
+            self.stack.push(.{ .string = "" });
+        } else if (n >= 2) {
+            for (1..@as(usize, @intCast(n))) |_| {
+                if (self.isString(-1) and self.isString(-2)) {
+                    const s2 = self.toString(-1);
+                    const s1 = self.toString(-2);
+                    var lv2 = self.stack.pop();
+                    var lv1 = self.stack.pop();
+                    const s = std.mem.concat(self.allocator, u8, &.{ s1, s2 }) catch @panic("allocation for concatenation failed");
+                    lv2.deinit(self.allocator);
+                    lv1.deinit(self.allocator);
+                    self.stack.push(.{ .string = s });
+                    continue;
+                }
+
+                @panic("concatenation error!");
+            }
+        }
+        // n == 1, do nothing   w
     }
 };
