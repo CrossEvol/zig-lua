@@ -39,14 +39,6 @@ pub fn main() !void {
     printStack(ls);
 }
 
-// PS E:\ZigCode\zig-lua> zig build ch05
-// [1]["2.0"]["3.0"][4]
-// [1]["2.0"][7]
-// [1]["2.0"][-8]
-// [1]["2.0"][-8][3]
-// [1]["2.0-83"]
-// [1]["2.0-83"][false]
-
 fn printStack(ls: *LuaState) void {
     const top = ls.getTop();
     for (1..top + 1) |x| {

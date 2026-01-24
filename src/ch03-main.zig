@@ -38,22 +38,6 @@ pub fn main() !void {
     }
 }
 
-// PS E:\ZigCode\zig-lua> zig build ch03
-// PS E:\ZigCode\zig-lua> .\zig-out\bin\ch03.exe .\test_data\luac.out
-
-//  main <@hello_world.lua:0,0> (4 instructions)
-// 0+ params, 2 slots, 1 upvalues, 0 locals, 2 constants, 0 functions
-//         1       [1]     GETTABUP        0 0 -1
-//         2       [1]     LOADK           1 -2
-//         3       [1]     CALL            0 2 1
-//         4       [1]     RETURN          0 1
-// constants (2):
-//         1       "print"
-//         2       "Hello, World!"
-// locals (0):
-// upvalues (1):
-//         0       _ENV    1       0
-
 fn list(f: *binchunk.Prototype, allocator: Allocator) !void {
     printHeader(f);
     try printCode(f, allocator);

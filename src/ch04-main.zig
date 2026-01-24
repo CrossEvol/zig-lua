@@ -38,17 +38,6 @@ pub fn main() !void {
     printStack(ls);
 }
 
-// PS E:\ZigCode\zig-lua> zig build ch04
-// [true]
-// [true][10]
-// [true][10][nil]
-// [true][10][nil]["hello"]
-// [true][10][nil]["hello"][true]
-// [true][10][true]["hello"]
-// [true][10][true]["hello"][nil][nil]
-// [true][10][true][nil][nil]
-// [true]
-
 fn printStack(ls: *LuaState) void {
     const top = ls.getTop();
     for (1..top + 1) |x| {
