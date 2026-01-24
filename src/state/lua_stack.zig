@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const LuaValue = @import("lua_value.zig").LuaValue;
+const LuaValue = @import("api").LuaValueNSP.LuaValue;
 
 pub const LuaStack = struct {
     slots: std.ArrayList(LuaValue),

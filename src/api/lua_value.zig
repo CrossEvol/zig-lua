@@ -1,7 +1,8 @@
 const std = @import("std");
 
-const LuaType = @import("api").LuaType;
 const number = @import("number");
+
+const LuaType = @import("consts.zig").LuaType;
 
 const string = []const u8;
 

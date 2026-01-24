@@ -1,7 +1,8 @@
 const std = @import("std");
 
+const LuaValue = @import("api").LuaValueNSP.LuaValue;
+
 const Reader = @import("reader.zig").Reader;
-const LuaValue = @import("state").LuaValue;
 
 const byte = u8;
 const uint = u32;

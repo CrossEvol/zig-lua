@@ -42,21 +42,15 @@ pub fn build(b: *std.Build) void {
     });
 
     // Create modules for different components
-    const api_mod = b.addModule("api", .{
-        .root_source_file = b.path("src/api/root.zig"),
-        .target = target,
-        .imports = &.{},
-    });
     const number_mod = b.addModule("number", .{
         .root_source_file = b.path("src/number/root.zig"),
         .target = target,
         .imports = &.{},
     });
-    const state_mod = b.addModule("state", .{
-        .root_source_file = b.path("src/state/root.zig"),
+    const api_mod = b.addModule("api", .{
+        .root_source_file = b.path("src/api/root.zig"),
         .target = target,
         .imports = &.{
-            .{ .name = "api", .module = api_mod },
             .{ .name = "number", .module = number_mod },
         },
     });
@@ -64,7 +58,16 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/binchunk/root.zig"),
         .target = target,
         .imports = &.{
-            .{ .name = "state", .module = state_mod },
+            .{ .name = "api", .module = api_mod },
+        },
+    });
+    const state_mod = b.addModule("state", .{
+        .root_source_file = b.path("src/state/root.zig"),
+        .target = target,
+        .imports = &.{
+            .{ .name = "api", .module = api_mod },
+            .{ .name = "number", .module = number_mod },
+            .{ .name = "binchunk", .module = binchunk_mod },
         },
     });
     const vm_mod = b.addModule("vm", .{
@@ -165,6 +168,7 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
             .imports = &.{
+                .{ .name = "api", .module = api_mod },
                 .{ .name = "binchunk", .module = binchunk_mod },
                 .{ .name = "state", .module = state_mod },
             },
@@ -192,6 +196,7 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
             .imports = &.{
+                .{ .name = "api", .module = api_mod },
                 .{ .name = "binchunk", .module = binchunk_mod },
                 .{ .name = "state", .module = state_mod },
                 .{ .name = "vm", .module = vm_mod },
@@ -268,5 +273,34 @@ pub fn build(b: *std.Build) void {
 
     if (b.args) |args| {
         run_ch05.addArgs(args);
+    }
+
+    // Chapter 6 executable
+    const ch06_exe = b.addExecutable(.{
+        .name = "ch06",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/ch06-main.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "binchunk", .module = binchunk_mod },
+                .{ .name = "state", .module = state_mod },
+                .{ .name = "vm", .module = vm_mod },
+                .{ .name = "api", .module = api_mod },
+            },
+        }),
+    });
+
+    b.installArtifact(ch06_exe);
+
+    const run_ch06 = b.addRunArtifact(ch06_exe);
+    const run_ch06_step = b.step("ch06", "Run chapter 6 application");
+    run_ch06_step.dependOn(&run_ch06.step);
+
+    // Make sure ch06 step also installs the executable
+    run_ch06_step.dependOn(b.getInstallStep());
+
+    if (b.args) |args| {
+        run_ch06.addArgs(args);
     }
 }

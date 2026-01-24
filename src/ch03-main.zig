@@ -3,7 +3,7 @@ const Allocator = std.mem.Allocator;
 
 const binchunk = @import("binchunk").binchunk;
 const Instruction = @import("vm").Instruction;
-const LuaValue = @import("state").LuaValue;
+const LuaValue = @import("api").LuaValueNSP.LuaValue;
 
 const string = []const u8;
 const int = i32;

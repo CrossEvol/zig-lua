@@ -1,7 +1,6 @@
 const std = @import("std");
 
-const LuaValueNSP = @import("lua_value.zig");
-const LuaValue = LuaValueNSP.LuaValue;
+const LuaValue = @import("api").LuaValueNSP.LuaValue;
 
 pub fn _eq(a: LuaValue, b: LuaValue) bool {
     return switch (a) {

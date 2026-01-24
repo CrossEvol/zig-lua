@@ -1,12 +1,11 @@
 const std = @import("std");
 const math = std.math;
 
-const number = @import("number");
-
-const LuaValueNSP = @import("lua_value.zig");
+const LuaValueNSP = @import("api").LuaValueNSP;
 const LuaValue = LuaValueNSP.LuaValue;
 const convertToFloat = LuaValueNSP.convertToFloat;
 const convertToInteger = LuaValueNSP.convertToInteger;
+const number = @import("number");
 
 const IntegerFunc = *const fn (a: i64, b: i64) i64;
 const FloatFunc = *const fn (a: f64, b: f64) f64;

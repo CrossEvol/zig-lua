@@ -2,7 +2,7 @@ const std = @import("std");
 const testing = std.testing;
 const expect = testing.expect;
 
-const LuaValue = @import("state").LuaValue;
+const LuaValue = @import("api").LuaValueNSP.LuaValue;
 
 const Header = @import("binary_chunk.zig").Header;
 const LocVar = @import("binary_chunk.zig").LocVar;

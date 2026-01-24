@@ -5,7 +5,13 @@ const api = @import("api");
 const LuaType = api.LuaType;
 const ArithOp = api.ArithOp;
 const CompareOp = api.CompareOp;
+const binchunk = @import("binchunk");
+const LuaValueNSP = @import("api").LuaValueNSP;
+const convertToBoolean = LuaValueNSP.convertToBoolean;
+const convertToInteger = LuaValueNSP.convertToInteger;
+const convertToFloat = LuaValueNSP.convertToFloat;
 const number = @import("number");
+const typeof = @import("api").LuaValueNSP.typeOf;
 
 const api_arith = @import("api_arith.zig");
 const operators = api_arith.operators;
@@ -15,22 +21,21 @@ const _eq = api_compare._eq;
 const _lt = api_compare._lt;
 const _le = api_compare._le;
 const LuaStack = @import("lua_stack.zig").LuaStack;
-const LuaValueNSP = @import("lua_value.zig");
-const convertToBoolean = LuaValueNSP.convertToBoolean;
-const convertToInteger = LuaValueNSP.convertToInteger;
-const convertToFloat = LuaValueNSP.convertToFloat;
-const typeof = @import("lua_value.zig").typeOf;
 
 const string = []const u8;
 pub const LuaState = struct {
     stack: LuaStack,
+    proto: ?*binchunk.Prototype,
+    _pc: i32,
     allocator: std.mem.Allocator,
 
-    pub fn init(allocator: std.mem.Allocator) !LuaState {
+    pub fn init0(allocator: std.mem.Allocator) !LuaState {
         const stack = try LuaStack.init(@intCast(20), allocator);
         return .{
             .stack = stack,
             .allocator = allocator,
+            .proto = null,
+            ._pc = 0,
         };
     }
 
