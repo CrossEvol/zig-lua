@@ -73,7 +73,11 @@ pub fn build(b: *std.Build) void {
     const vm_mod = b.addModule("vm", .{
         .root_source_file = b.path("src/vm/root.zig"),
         .target = target,
-        .imports = &.{},
+        .imports = &.{
+            .{ .name = "state", .module = state_mod },
+            .{ .name = "api", .module = api_mod },
+            .{ .name = "binchunk", .module = binchunk_mod },
+        },
     });
 
     // Main executable

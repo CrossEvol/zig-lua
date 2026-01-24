@@ -25,10 +25,10 @@ pub const LuaStack = struct {
         self.slots.deinit(self.allocator);
     }
 
-    pub fn check(self: *LuaStack, n: usize) !void {
+    pub fn check(self: *LuaStack, n: i32) void {
         const free = self.slots.items.len - self.top;
-        for (free..n) |_| {
-            try self.slots.append(self.allocator, .{ .nil = {} });
+        for (free..@as(usize, @intCast(n))) |_| {
+            self.slots.append(self.allocator, .{ .nil = {} }) catch @panic("stack overflow");
         }
     }
 

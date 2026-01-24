@@ -1,3 +1,4 @@
+const LuaVM = @import("lua_vm.zig").LuaVM;
 const OpArgMask = @import("opcodes.zig").OpArgMask;
 const opcodes = @import("opcodes.zig").opcodes;
 const OpMode = @import("opcodes.zig").OpMode;
@@ -32,6 +33,11 @@ pub const Instruction = packed struct(u32) {
         },
         bx: u18,
     },
+
+    pub fn of(u: u32) Instruction {
+        const inst = @as(Instruction, @bitCast(u));
+        return inst;
+    }
 
     pub fn Opcode(self: Instruction) int {
         return @intCast(self.op);
@@ -83,5 +89,14 @@ pub const Instruction = packed struct(u32) {
     pub fn cMode(self: Instruction) OpArgMask {
         const op_index: usize = @intCast(self.Opcode());
         return opcodes[op_index].arg_c_mode;
+    }
+
+    pub fn execute(self: Instruction, vm: *LuaVM) void {
+        const action = opcodes[@intCast(self.Opcode())].action;
+        if (action) |f| {
+            f(self, vm);
+        } else {
+            @panic(self.opName());
+        }
     }
 };

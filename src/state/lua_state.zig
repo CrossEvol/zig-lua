@@ -39,6 +39,16 @@ pub const LuaState = struct {
         };
     }
 
+    pub fn init(allocator: std.mem.Allocator, stack_size: i32, proto: *binchunk.Prototype) !LuaState {
+        const stack = try LuaStack.init(@intCast(stack_size), allocator);
+        return .{
+            .stack = stack,
+            .allocator = allocator,
+            .proto = proto,
+            ._pc = 0,
+        };
+    }
+
     pub fn deinit(self: *LuaState) void {
         self.stack.deinit();
     }
@@ -218,7 +228,7 @@ pub const LuaState = struct {
 
     // [-0, +0, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_checkstack
-    pub fn checkStack(self: *LuaState, n: usize) bool {
+    pub fn checkStack(self: *LuaState, n: i32) bool {
         self.stack.check(n);
         return true;
     }
@@ -404,5 +414,35 @@ pub const LuaState = struct {
             }
         }
         // n == 1, do nothing   w
+    }
+
+    /// **************************  api_vm  **************************
+
+    // api_vm
+    pub fn pc(self: *LuaState) i32 {
+        return self._pc;
+    }
+
+    pub fn addPC(self: *LuaState, n: i32) void {
+        self._pc += n;
+    }
+
+    pub fn fetch(self: *LuaState) u32 {
+        const i = self.proto.?.code[@as(usize, @intCast(self.pc()))];
+        self._pc += 1;
+        return i;
+    }
+
+    pub fn getConst(self: *LuaState, idx: i32) void {
+        const c = self.proto.?.constants[@as(usize, @intCast(idx))];
+        self.stack.push(c);
+    }
+
+    pub fn getRK(self: *LuaState, rk: i32) void {
+        if (rk > 0xFF) { // constant
+            self.getConst(rk & 0xFF);
+        } else { // register
+            self.pushValue(rk + 1);
+        }
     }
 };
