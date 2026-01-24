@@ -27,6 +27,7 @@ pub const LuaStack = struct {
 
     pub fn check(self: *LuaStack, n: i32) void {
         const free = self.slots.items.len - self.top;
+        if (@as(usize, @intCast(n)) < free) return;
         for (free..@as(usize, @intCast(n))) |_| {
             self.slots.append(self.allocator, .{ .nil = {} }) catch @panic("stack overflow");
         }
@@ -66,6 +67,7 @@ pub const LuaStack = struct {
     pub fn get(self: *LuaStack, idx: i32) LuaValue {
         const absIdx = self.absIndex(idx);
         if (absIdx > 0 and absIdx <= self.top) {
+            // Return the value without cloning - caller is responsible for cloning if needed
             return self.slots.items[absIdx - 1];
         }
         return .{ .nil = {} };
@@ -74,7 +76,10 @@ pub const LuaStack = struct {
     pub fn set(self: *LuaStack, idx: i32, val: LuaValue) void {
         const absIdx = self.absIndex(idx);
         if (absIdx > 0 and absIdx <= self.top) {
-            self.slots.items[absIdx - 1].deinit(self.allocator);
+            // Free the old value before replacing it
+            // This is safe because replace() pops the new value first
+            var old_val = self.slots.items[absIdx - 1];
+            old_val.deinit(self.allocator);
             self.slots.items[absIdx - 1] = val;
             return;
         }

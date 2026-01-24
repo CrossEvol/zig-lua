@@ -291,4 +291,56 @@ pub const LuaVM = struct {
     pub fn getRK(self: *LuaVM, rk: i32) void {
         self.ls.getRK(rk);
     }
+
+    /// **************************  api_get  **************************
+
+    // [-0, +1, m]
+    // http://www.lua.org/manual/5.3/manual.html#lua_newtable
+    pub fn newTable(self: *LuaVM) void {
+        self.ls.newTable();
+    }
+
+    // [-0, +1, m]
+    // http://www.lua.org/manual/5.3/manual.html#lua_createtable
+    pub fn createTable(self: *LuaVM, n_arr: i32, n_rec: i32) void {
+        self.ls.createTable(n_arr, n_rec);
+    }
+
+    // [-1, +1, e]
+    // http://www.lua.org/manual/5.3/manual.html#lua_gettable
+    pub fn getTable(self: *LuaVM, idx: i32) LuaType {
+        return self.ls.getTable(idx);
+    }
+
+    // [-0, +1, e]
+    // http://www.lua.org/manual/5.3/manual.html#lua_getfield
+    pub fn getField(self: *LuaVM, idx: i32, k: []const u8) LuaType {
+        return self.ls.getField(idx, k);
+    }
+
+    // [-0, +1, e]
+    // http://www.lua.org/manual/5.3/manual.html#lua_geti
+    pub fn getI(self: *LuaVM, idx: i32, i: i64) LuaType {
+        return self.ls.getI(idx, i);
+    }
+
+    /// **************************  api_set  **************************
+
+    // [-2, +0, e]
+    // http://www.lua.org/manual/5.3/manual.html#lua_settable
+    pub fn setTable(self: *LuaVM, idx: i32) void {
+        self.ls.setTable(idx);
+    }
+
+    // [-1, +0, e]
+    // http://www.lua.org/manual/5.3/manual.html#lua_setfield
+    pub fn setField(self: *LuaVM, idx: i32, k: []const u8) void {
+        self.ls.setField(idx, k);
+    }
+
+    // [-1, +0, e]
+    // http://www.lua.org/manual/5.3/manual.html#lua_seti
+    pub fn setI(self: *LuaVM, idx: i32, i: i64) void {
+        self.ls.setI(idx, i);
+    }
 };

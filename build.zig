@@ -307,4 +307,33 @@ pub fn build(b: *std.Build) void {
     if (b.args) |args| {
         run_ch06.addArgs(args);
     }
+
+    // Chapter 7 executable
+    const ch07_exe = b.addExecutable(.{
+        .name = "ch07",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/ch07-main.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "binchunk", .module = binchunk_mod },
+                .{ .name = "state", .module = state_mod },
+                .{ .name = "vm", .module = vm_mod },
+                .{ .name = "api", .module = api_mod },
+            },
+        }),
+    });
+
+    b.installArtifact(ch07_exe);
+
+    const run_ch07 = b.addRunArtifact(ch07_exe);
+    const run_ch07_step = b.step("ch07", "Run chapter 7 application");
+    run_ch07_step.dependOn(&run_ch07.step);
+
+    // Make sure ch07 step also installs the executable
+    run_ch07_step.dependOn(b.getInstallStep());
+
+    if (b.args) |args| {
+        run_ch07.addArgs(args);
+    }
 }

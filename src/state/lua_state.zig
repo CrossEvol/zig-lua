@@ -6,7 +6,9 @@ const LuaType = api.LuaType;
 const ArithOp = api.ArithOp;
 const CompareOp = api.CompareOp;
 const binchunk = @import("binchunk");
+const LuaTable = @import("api").LuaTable;
 const LuaValueNSP = @import("api").LuaValueNSP;
+const LuaValue = LuaValueNSP.LuaValue;
 const convertToBoolean = LuaValueNSP.convertToBoolean;
 const convertToInteger = LuaValueNSP.convertToInteger;
 const convertToFloat = LuaValueNSP.convertToFloat;
@@ -387,6 +389,9 @@ pub const LuaState = struct {
             .string => |s| {
                 self.stack.push(.{ .int64 = @intCast(s.len) });
             },
+            .lua_table => |t| {
+                self.stack.push(.{ .int64 = @intCast(t.len()) });
+            },
             else => @panic("length error!"),
         }
     }
@@ -435,7 +440,7 @@ pub const LuaState = struct {
 
     pub fn getConst(self: *LuaState, idx: i32) void {
         const c = self.proto.?.constants[@as(usize, @intCast(idx))];
-        self.stack.push(c);
+        self.stack.push(c.clone(self.allocator));
     }
 
     pub fn getRK(self: *LuaState, rk: i32) void {
@@ -444,5 +449,98 @@ pub const LuaState = struct {
         } else { // register
             self.pushValue(rk + 1);
         }
+    }
+
+    /// **************************  api_get  **************************
+
+    // [-0, +1, m]
+    // http://www.lua.org/manual/5.3/manual.html#lua_newtable
+    pub fn newTable(self: *LuaState) void {
+        self.createTable(0, 0);
+    }
+
+    // [-0, +1, m]
+    // http://www.lua.org/manual/5.3/manual.html#lua_createtable
+    pub fn createTable(self: *LuaState, n_arr: i32, n_rec: i32) void {
+        const t = self.allocator.create(LuaTable) catch @panic("allocation failed!");
+        t.* = LuaTable.init(self.allocator, n_arr, n_rec);
+        self.stack.push(.{ .lua_table = t });
+    }
+
+    // [-1, +1, e]
+    // http://www.lua.org/manual/5.3/manual.html#lua_gettable
+    pub fn getTable(self: *LuaState, idx: i32) LuaType {
+        const t = self.stack.get(idx);
+        var k = self.stack.pop();
+        defer k.deinit(self.allocator);
+        return self._getTable(t, k);
+    }
+
+    // [-0, +1, e]
+    // http://www.lua.org/manual/5.3/manual.html#lua_getfield
+    pub fn getField(self: *LuaState, idx: i32, k: string) LuaType {
+        const t = self.stack.get(idx);
+        return self._getTable(t, .{ .string = k });
+    }
+
+    // [-0, +1, e]
+    // http://www.lua.org/manual/5.3/manual.html#lua_geti
+    pub fn getI(self: *LuaState, idx: i32, i: i64) LuaType {
+        const t = self.stack.get(idx);
+        return self._getTable(t, .{ .int64 = i });
+    }
+
+    // push(t[k])
+    fn _getTable(self: *LuaState, t: LuaValue, k: LuaValue) LuaType {
+        if (std.meta.activeTag(t) == .lua_table) {
+            const v = t.lua_table.get(k);
+            self.stack.push(v.clone(self.allocator));
+            return typeof(v);
+        }
+
+        @panic("not a table!");
+    }
+
+    /// **************************  api_set  **************************
+
+    // [-2, +0, e]
+    // http://www.lua.org/manual/5.3/manual.html#lua_settable
+    pub fn setTable(self: *LuaState, idx: i32) void {
+        const t = self.stack.get(idx);
+        var v = self.stack.pop();
+        defer v.deinit(self.allocator);
+        var k = self.stack.pop();
+        defer k.deinit(self.allocator);
+        self._setTable(t, k, v);
+    }
+
+    // [-1, +0, e]
+    // http://www.lua.org/manual/5.3/manual.html#lua_setfield
+    pub fn setField(self: *LuaState, idx: i32, k: string) void {
+        const t = self.stack.get(idx);
+        var v = self.stack.pop();
+        defer v.deinit(self.allocator);
+        var key = LuaValue{ .string = self.allocator.dupe(u8, k) catch @panic("allocation failed") };
+        defer key.deinit(self.allocator);
+        self._setTable(t, key, v);
+    }
+
+    // [-1, +0, e]
+    // http://www.lua.org/manual/5.3/manual.html#lua_seti
+    pub fn setI(self: *LuaState, idx: i32, i: i64) void {
+        const t = self.stack.get(idx);
+        var v = self.stack.pop();
+        defer v.deinit(self.allocator);
+        self._setTable(t, .{ .int64 = i }, v);
+    }
+
+    // t[k]=v
+    fn _setTable(_: *LuaState, t: LuaValue, k: LuaValue, v: LuaValue) void {
+        if (std.meta.activeTag(t) == .lua_table) {
+            t.lua_table.put(k, v);
+            return;
+        }
+
+        @panic("not a table!");
     }
 };

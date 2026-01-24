@@ -33,6 +33,11 @@ const testSet = InstOperators.testSet;
 const length = InstOperators.length;
 const concat = InstOperators.concat;
 const Instruction = @import("instruction.zig").Instruction;
+const InstTable = @import("inst_table.zig");
+const newTable = InstTable.newTable;
+const getTable = InstTable.getTable;
+const setTable = InstTable.setTable;
+const setList = InstTable.setList;
 const LuaVM = @import("lua_vm.zig").LuaVM;
 
 // inst functions
@@ -136,11 +141,11 @@ pub const opcodes = [_]OpCodeStruct{
     opcode(0, 1, .OpArgU, .OpArgN, .IABC, "LOADNIL ", loadNil), // R(A), R(A+1), ..., R(A+B) := nil
     opcode(0, 1, .OpArgU, .OpArgN, .IABC, "GETUPVAL", null), // R(A) := UpValue[B]
     opcode(0, 1, .OpArgU, .OpArgK, .IABC, "GETTABUP", null), // R(A) := UpValue[B][RK(C)]
-    opcode(0, 1, .OpArgR, .OpArgK, .IABC, "GETTABLE", null), // R(A) := R(B)[RK(C)]
+    opcode(0, 1, .OpArgR, .OpArgK, .IABC, "GETTABLE", getTable), // R(A) := R(B)[RK(C)]
     opcode(0, 0, .OpArgK, .OpArgK, .IABC, "SETTABUP", null), // UpValue[A][RK(B)] := RK(C)
     opcode(0, 0, .OpArgU, .OpArgN, .IABC, "SETUPVAL", null), // UpValue[B] := R(A)
-    opcode(0, 0, .OpArgK, .OpArgK, .IABC, "SETTABLE", null), // R(A)[RK(B)] := RK(C)
-    opcode(0, 1, .OpArgU, .OpArgU, .IABC, "NEWTABLE", null), // R(A) := {} (size = B,C)
+    opcode(0, 0, .OpArgK, .OpArgK, .IABC, "SETTABLE", setTable), // R(A)[RK(B)] := RK(C)
+    opcode(0, 1, .OpArgU, .OpArgU, .IABC, "NEWTABLE", newTable), // R(A) := {} (size = B,C)
     opcode(0, 1, .OpArgR, .OpArgK, .IABC, "SELF    ", null), // R(A+1) := R(B); R(A) := R(B)[RK(C)]
     opcode(0, 1, .OpArgK, .OpArgK, .IABC, "ADD     ", add), // R(A) := RK(B) + RK(C)
     opcode(0, 1, .OpArgK, .OpArgK, .IABC, "SUB     ", sub), // R(A) := RK(B) - RK(C)
@@ -172,7 +177,7 @@ pub const opcodes = [_]OpCodeStruct{
     opcode(0, 1, .OpArgR, .OpArgN, .IAsBx, "FORPREP ", forPrep), // R(A)-=R(A+2); pc+=sBx
     opcode(0, 0, .OpArgN, .OpArgU, .IABC, "TFORCALL", null), // R(A+3), ... ,R(A+2+C) := R(A)(R(A+1), R(A+2));
     opcode(0, 1, .OpArgR, .OpArgN, .IAsBx, "TFORLOOP", null), // if R(A+1) ~= nil then { R(A)=R(A+1); pc += sBx }
-    opcode(0, 0, .OpArgU, .OpArgU, .IABC, "SETLIST ", null), // R(A)[(C-1)*FPF+i] := R(A+i), 1 <= i <= B
+    opcode(0, 0, .OpArgU, .OpArgU, .IABC, "SETLIST ", setList), // R(A)[(C-1)*FPF+i] := R(A+i), 1 <= i <= B
     opcode(0, 1, .OpArgU, .OpArgN, .IABx, "CLOSURE ", null), // R(A) := closure(KPROTO[Bx])
     opcode(0, 1, .OpArgU, .OpArgN, .IABC, "VARARG  ", null), // R(A), R(A+1), ..., R(A+B-2) = vararg
     opcode(0, 0, .OpArgU, .OpArgU, .IAx, "EXTRAARG", null), // extra (larger) argument for previous opcode
