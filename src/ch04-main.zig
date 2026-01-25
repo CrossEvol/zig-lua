@@ -3,7 +3,7 @@ const Allocator = std.mem.Allocator;
 
 const binchunk = @import("binchunk").binchunk;
 const Instruction = @import("vm").Instruction;
-const LuaState = @import("state").LuaState;
+const LuaState = @import("vm").LuaState;
 const LuaValue = @import("binchunk").LuaValueNSP.LuaValue;
 
 const string = []const u8;
@@ -14,7 +14,7 @@ pub fn main() !void {
     defer _ = debug_allocator.deinit(); // This checks for leaks.
     const gpa = debug_allocator.allocator();
 
-    var lua_state = try LuaState.init0(gpa);
+    var lua_state = try LuaState.init(gpa);
     defer lua_state.deinit();
 
     var ls = &lua_state;

@@ -6,7 +6,7 @@ const ArithOp = apiNSP.ArithOp;
 const CompareOp = apiNSP.CompareOp;
 const binchunk = @import("binchunk").binchunk;
 const Instruction = @import("vm").Instruction;
-const LuaState = @import("state").LuaState;
+const LuaState = @import("vm").LuaState;
 const LuaValue = @import("binchunk").LuaValueNSP.LuaValue;
 const LuaVM = @import("vm").LuaVM;
 const OpCode = @import("vm").OpCode;
@@ -46,10 +46,12 @@ pub fn main() !void {
 
 pub fn luaMain(proto: *binchunk.Prototype, allocator: std.mem.Allocator) !void {
     const n_registers: i32 = @intCast(proto.max_stack_size);
-    var lua_vm = try LuaVM.init(allocator, n_registers + 8, proto);
-    defer lua_vm.deinit();
+    var lua_vm = try LuaVM.init(allocator);
     var ls = &lua_vm;
+    defer ls.deinit();
 
+    ls.setClosure(proto);
+    defer ls.unsetClosure();
     ls.setTop(n_registers);
     outer: while (true) {
         const pc = ls.pc();

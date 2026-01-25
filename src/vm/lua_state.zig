@@ -5,54 +5,48 @@ const api = @import("api");
 const LuaType = api.LuaType;
 const ArithOp = api.ArithOp;
 const CompareOp = api.CompareOp;
-const binchunk = @import("binchunk");
-const LuaTable = @import("api").LuaTable;
-const LuaValueNSP = @import("api").LuaValueNSP;
+const api_arith = @import("state");
+const operators = api_arith.operators;
+const _arith = api_arith._arith;
+const api_compare = @import("state");
+const _eq = api_compare._eq;
+const _lt = api_compare._lt;
+const _le = api_compare._le;
+const binchunkMod = @import("binchunk");
+const Closure = binchunkMod.Closure;
+const LuaTable = binchunkMod.LuaTable;
+const LuaValueNSP = binchunkMod.LuaValueNSP;
+const binchunk = binchunkMod.binchunk;
 const LuaValue = LuaValueNSP.LuaValue;
 const convertToBoolean = LuaValueNSP.convertToBoolean;
 const convertToInteger = LuaValueNSP.convertToInteger;
 const convertToFloat = LuaValueNSP.convertToFloat;
+const typeof = binchunkMod.LuaValueNSP.typeOf;
+const LuaStack = @import("state").LuaStack;
 const number = @import("number");
-const typeof = @import("api").LuaValueNSP.typeOf;
 
-const api_arith = @import("api_arith.zig");
-const operators = api_arith.operators;
-const _arith = api_arith._arith;
-const api_compare = @import("api_compare.zig");
-const _eq = api_compare._eq;
-const _lt = api_compare._lt;
-const _le = api_compare._le;
-const LuaStack = @import("lua_stack.zig").LuaStack;
+const Instruction = @import("instruction.zig").Instruction;
+const OpCode = @import("opcodes.zig").OpCode;
+const vm = @import("lua_vm.zig");
+const LuaVM = vm.LuaVM;
 
 const string = []const u8;
 pub const LuaState = struct {
-    stack: LuaStack,
-    proto: ?*binchunk.Prototype,
-    _pc: i32,
+    stack: *LuaStack,
     allocator: std.mem.Allocator,
 
-    pub fn init0(allocator: std.mem.Allocator) !LuaState {
-        const stack = try LuaStack.init(@intCast(20), allocator);
+    pub fn init(allocator: std.mem.Allocator) !LuaState {
+        const stack = allocator.create(LuaStack) catch @panic("allocation failed");
+        stack.* = try LuaStack.init(@intCast(20), allocator);
         return .{
             .stack = stack,
             .allocator = allocator,
-            .proto = null,
-            ._pc = 0,
-        };
-    }
-
-    pub fn init(allocator: std.mem.Allocator, stack_size: i32, proto: *binchunk.Prototype) !LuaState {
-        const stack = try LuaStack.init(@intCast(stack_size), allocator);
-        return .{
-            .stack = stack,
-            .allocator = allocator,
-            .proto = proto,
-            ._pc = 0,
         };
     }
 
     pub fn deinit(self: *LuaState) void {
         self.stack.deinit();
+        self.allocator.destroy(self.stack);
     }
 
     /// **************************  api_access  **************************
@@ -160,7 +154,7 @@ pub const LuaState = struct {
 
     // [-0, +0, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_tointeger
-    pub fn toInteger(self: *LuaState, idx: i32) bool {
+    pub fn toInteger(self: *LuaState, idx: i32) i64 {
         const i, const ok = self.toIntegerX(idx);
         _ = ok;
         return i;
@@ -237,8 +231,8 @@ pub const LuaState = struct {
 
     // [-n, +0, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_pop
-    pub fn pop(self: *LuaState, n: usize) void {
-        for (0..n) |_| {
+    pub fn pop(self: *LuaState, n: i32) void {
+        for (0..@as(usize, @intCast(n))) |_| {
             var val = self.stack.pop();
             val.deinit(self.allocator);
         }
@@ -425,21 +419,21 @@ pub const LuaState = struct {
 
     // api_vm
     pub fn pc(self: *LuaState) i32 {
-        return self._pc;
+        return self.stack.pc;
     }
 
     pub fn addPC(self: *LuaState, n: i32) void {
-        self._pc += n;
+        self.stack.pc += n;
     }
 
     pub fn fetch(self: *LuaState) u32 {
-        const i = self.proto.?.code[@as(usize, @intCast(self.pc()))];
-        self._pc += 1;
+        const i = self.stack.closure.?.proto.code[@as(usize, @intCast(self.stack.pc))];
+        self.stack.pc += 1;
         return i;
     }
 
     pub fn getConst(self: *LuaState, idx: i32) void {
-        const c = self.proto.?.constants[@as(usize, @intCast(idx))];
+        const c = self.stack.closure.?.proto.constants[@as(usize, @intCast(idx))];
         self.stack.push(c.clone(self.allocator));
     }
 
@@ -449,6 +443,34 @@ pub const LuaState = struct {
         } else { // register
             self.pushValue(rk + 1);
         }
+    }
+
+    pub fn registerCount(self: *LuaState) i32 {
+        return @intCast(self.stack.closure.?.proto.max_stack_size);
+    }
+
+    pub fn loadVararg(self: *LuaState, n0: i32) void {
+        const n: i32 = if (n0 < 0)
+            if (self.stack.varargs) |varargs| @as(i32, @intCast(varargs.len)) else 0
+        else
+            n0;
+
+        self.stack.check(n);
+        if (self.stack.varargs) |varargs| {
+            self.stack.pushN(varargs, n);
+        } else {
+            // No varargs available, push nils
+            for (0..@as(usize, @intCast(n))) |_| {
+                self.stack.push(.{ .nil = {} });
+            }
+        }
+    }
+
+    pub fn loadProto(self: *LuaState, idx: i32) void {
+        const proto = self.stack.closure.?.proto.protos[@as(usize, @intCast(idx))];
+        const closure = self.allocator.create(Closure) catch @panic("allocation failed");
+        closure.* = Closure.init(proto);
+        self.stack.push(.{ .closure = closure });
     }
 
     /// **************************  api_get  **************************
@@ -542,5 +564,135 @@ pub const LuaState = struct {
         }
 
         @panic("not a table!");
+    }
+
+    /// **************************  api_closure  **************************
+
+    // api_closure
+    pub fn setClosure(self: *LuaState, proto: *binchunkMod.Prototype) void {
+        const closure = self.allocator.create(Closure) catch @panic("allocation failed");
+        closure.* = Closure.init(proto);
+        self.stack.closure = closure;
+    }
+
+    pub fn unsetClosure(self: *LuaState) void {
+        if (self.stack.closure) |c| {
+            c.*.release(self.allocator);
+        }
+    }
+
+    /// **************************  api_call  **************************
+
+    // api_call
+    pub fn pushLuaStack(self: *LuaState, stack: *LuaStack) void {
+        stack.prev = self.stack;
+        self.stack = stack;
+    }
+
+    pub fn popLuaStack(self: *LuaState) void {
+        var stack = self.stack;
+        self.stack = stack.prev.?;
+        stack.deinit();
+        self.allocator.destroy(stack);
+    }
+
+    // [-0, +1, –]
+    // http://www.lua.org/manual/5.3/manual.html#lua_load
+    pub fn load(self: *LuaState, chunk: []u8, chunk_name: string, mode: string) i32 {
+        _ = chunk_name;
+        _ = mode;
+
+        const proto = binchunk.undump(chunk);
+        const c = self.allocator.create(Closure) catch @panic("allocation failed");
+        c.* = Closure.init(proto);
+        self.stack.push(.{ .closure = c });
+
+        return 0;
+    }
+
+    // [-(nargs+1), +nresults, e]
+    // http://www.lua.org/manual/5.3/manual.html#lua_call
+    pub fn call(self: *LuaState, n_args: i32, n_results: i32) void {
+        const val = self.stack.get(-(n_args + 1));
+        switch (val) {
+            .closure => |c| {
+                std.debug.print("call {s}<{d},{d}>\n", .{
+                    c.proto.source,
+                    c.proto.line_defined,
+                    c.proto.last_line_defined,
+                });
+                self.callLuaClosure(n_args, n_results, c);
+            },
+            else => {
+                @panic("not function!");
+            },
+        }
+    }
+
+    fn callLuaClosure(self: *LuaState, n_args: i32, n_results: i32, c: *Closure) void {
+        const n_registers = @as(usize, @intCast(c.proto.max_stack_size));
+        const n_params = @as(i32, @intCast(c.proto.num_params));
+        const is_vararg = c.proto.is_vararg == 1;
+
+        // create new lua stack
+        const new_stack = self.allocator.create(LuaStack) catch @panic("allocation failed");
+        new_stack.* = LuaStack.init(n_registers + 20, self.allocator) catch @panic("allocation failed");
+        new_stack.closure = c;
+
+        // pass args, pop func
+        const func_and_args = self.stack.popN(n_args + 1);
+        defer self.allocator.free(func_and_args);
+
+        new_stack.pushN(func_and_args[1..], n_params);
+        new_stack.top = n_registers;
+        if (n_args > n_params and is_vararg) {
+            new_stack.varargs = func_and_args[@as(usize, @intCast(n_params + 1))..];
+        }
+
+        // run closure
+        self.pushLuaStack(new_stack);
+        self.runLuaClosure();
+
+        // get results before popping the stack
+        var results: ?[]LuaValue = null;
+        if (n_results != 0) {
+            const stack_top = @as(i32, @intCast(new_stack.top));
+            const registers = @as(i32, @intCast(n_registers));
+            const results_count = if (stack_top > registers) stack_top - registers else 0;
+
+            if (results_count > 0) {
+                results = new_stack.popN(results_count);
+            }
+        }
+
+        self.popLuaStack();
+
+        // return results
+        if (results) |res| {
+            const n = if (n_results < 0) @as(i32, @intCast(res.len)) else n_results;
+            self.stack.check(n);
+            self.stack.pushN(res, n_results);
+            if (n_results >= 0 and res.len > @as(usize, @intCast(n_results))) {
+                for (res[@as(usize, @intCast(n_results))..]) |*v| {
+                    v.deinit(self.allocator);
+                }
+            }
+            self.allocator.free(res);
+        }
+
+        // Deinit the closure that was popped from the stack
+        func_and_args[0].deinit(self.allocator);
+    }
+
+    fn runLuaClosure(self: *LuaState) void {
+        var lua_vm_wrapper = LuaVM.of(self);
+        const lua_vm = &lua_vm_wrapper;
+        outer: while (true) {
+            const inst = Instruction.of(lua_vm.fetch());
+            inst.execute(lua_vm);
+            if (inst.Opcode() == @intFromEnum(OpCode.OP_RETURN)) {
+                break :outer;
+            }
+        }
     }
 };

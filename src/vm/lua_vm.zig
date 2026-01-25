@@ -3,22 +3,32 @@ const std = @import("std");
 const ArithOp = @import("api").ArithOp;
 const binchunk = @import("binchunk");
 const CompareOp = @import("api").CompareOp;
-const LuaState = @import("state").LuaState;
 const LuaType = @import("api").LuaType;
+
+const LuaState = @import("lua_state.zig").LuaState;
+
+const string = []const u8;
 
 pub const LuaVM = struct {
     ls: *LuaState,
     allocator: std.mem.Allocator,
 
-    pub fn init(allocator: std.mem.Allocator, stack_size: i32, proto: *binchunk.Prototype) !LuaVM {
+    pub fn init(allocator: std.mem.Allocator) !LuaVM {
         const ls = try allocator.create(LuaState);
         errdefer allocator.destroy(ls);
 
-        ls.* = try LuaState.init(allocator, stack_size, proto);
+        ls.* = try LuaState.init(allocator);
 
         return .{
             .ls = ls,
             .allocator = allocator,
+        };
+    }
+
+    pub fn of(ls: *LuaState) LuaVM {
+        return .{
+            .ls = ls,
+            .allocator = ls.allocator,
         };
     }
 
@@ -109,7 +119,7 @@ pub const LuaVM = struct {
 
     // [-0, +0, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_tointeger
-    pub fn toInteger(self: *LuaVM, idx: i32) bool {
+    pub fn toInteger(self: *LuaVM, idx: i32) i64 {
         return self.ls.toInteger(idx);
     }
 
@@ -163,7 +173,7 @@ pub const LuaVM = struct {
 
     // [-n, +0, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_pop
-    pub fn pop(self: *LuaVM, n: usize) void {
+    pub fn pop(self: *LuaVM, n: i32) void {
         self.ls.pop(n);
     }
 
@@ -292,6 +302,18 @@ pub const LuaVM = struct {
         self.ls.getRK(rk);
     }
 
+    pub fn registerCount(self: *LuaVM) i32 {
+        return self.ls.registerCount();
+    }
+
+    pub fn loadVararg(self: *LuaVM, n: i32) void {
+        self.ls.loadVararg(n);
+    }
+
+    pub fn loadProto(self: *LuaVM, idx: i32) void {
+        self.ls.loadProto(idx);
+    }
+
     /// **************************  api_get  **************************
 
     // [-0, +1, m]
@@ -342,5 +364,30 @@ pub const LuaVM = struct {
     // http://www.lua.org/manual/5.3/manual.html#lua_seti
     pub fn setI(self: *LuaVM, idx: i32, i: i64) void {
         self.ls.setI(idx, i);
+    }
+
+    /// **************************  api_closure  **************************
+
+    // api_closure
+    pub fn setClosure(self: *LuaVM, proto: *binchunk.Prototype) void {
+        self.ls.setClosure(proto);
+    }
+
+    pub fn unsetClosure(self: *LuaVM) void {
+        self.ls.unsetClosure();
+    }
+
+    /// **************************  api_all  **************************
+
+    // [-0, +1, –]
+    // http://www.lua.org/manual/5.3/manual.html#lua_load
+    pub fn load(self: *LuaVM, chunk: []u8, chunk_name: string, mode: string) i32 {
+        return self.ls.load(chunk, chunk_name, mode);
+    }
+
+    // [-(nargs+1), +nresults, e]
+    // http://www.lua.org/manual/5.3/manual.html#lua_call
+    pub fn call(self: *LuaVM, n_args: i32, n_results: i32) void {
+        self.ls.call(n_args, n_results);
     }
 };

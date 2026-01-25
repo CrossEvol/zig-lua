@@ -1,10 +1,22 @@
 const std = @import("std");
 
-const LuaValue = @import("api").LuaValueNSP.LuaValue;
+const Closure = @import("binchunk").Closure;
+const LuaValue = @import("binchunk").LuaValueNSP.LuaValue;
 
 pub const LuaStack = struct {
+    // virtual stack
     slots: std.ArrayList(LuaValue),
-    top: usize = 0,
+    top: usize,
+
+    // call info
+    closure: ?*Closure,
+    varargs: ?[]LuaValue,
+    pc: i32,
+
+    // linked list
+    prev: ?*LuaStack,
+
+    // memory management
     allocator: std.mem.Allocator,
 
     pub fn init(size: usize, allocator: std.mem.Allocator) !LuaStack {
@@ -14,6 +26,11 @@ pub const LuaStack = struct {
 
         return .{
             .slots = slots,
+            .top = 0,
+            .closure = null,
+            .varargs = null,
+            .pc = 0,
+            .prev = null,
             .allocator = allocator,
         };
     }
@@ -23,6 +40,12 @@ pub const LuaStack = struct {
             self.slots.items[i].deinit(self.allocator);
         }
         self.slots.deinit(self.allocator);
+
+        if (self.varargs) |varargs| {
+            for (varargs) |*v| {
+                v.deinit(self.allocator);
+            }
+        }
     }
 
     pub fn check(self: *LuaStack, n: i32) void {
@@ -94,5 +117,27 @@ pub const LuaStack = struct {
             i += 1;
             j -= 1;
         }
+    }
+
+    pub fn pushN(self: *LuaStack, vals: []LuaValue, n: i32) void {
+        const n_vals = vals.len;
+        const end: usize = if (n < 0) n_vals else @intCast(n);
+
+        for (0..end) |i| {
+            if (i < n_vals) {
+                self.push(vals[i]);
+            } else {
+                self.push(.{ .nil = {} });
+            }
+        }
+    }
+
+    pub fn popN(self: *LuaStack, n: i32) []LuaValue {
+        const vals = self.allocator.alloc(LuaValue, @as(usize, @intCast(n))) catch @panic("allocation failed");
+        var i = n - 1;
+        while (i >= 0) : (i -= 1) {
+            vals[@as(usize, @intCast(i))] = self.pop();
+        }
+        return vals;
     }
 };
