@@ -1,7 +1,7 @@
 const std = @import("std");
 const math = std.math;
 
-const LuaValueNSP = @import("api").LuaValueNSP;
+const LuaValueNSP = @import("binchunk").LuaValueNSP;
 const LuaValue = LuaValueNSP.LuaValue;
 const convertToFloat = LuaValueNSP.convertToFloat;
 const convertToInteger = LuaValueNSP.convertToInteger;

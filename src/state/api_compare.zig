@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const LuaValue = @import("api").LuaValueNSP.LuaValue;
+const LuaValue = @import("binchunk").LuaValueNSP.LuaValue;
 
 pub fn _eq(a: LuaValue, b: LuaValue) bool {
     return switch (a) {

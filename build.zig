@@ -59,6 +59,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .imports = &.{
             .{ .name = "api", .module = api_mod },
+            .{ .name = "number", .module = number_mod },
         },
     });
     const state_mod = b.addModule("state", .{
@@ -335,5 +336,34 @@ pub fn build(b: *std.Build) void {
 
     if (b.args) |args| {
         run_ch07.addArgs(args);
+    }
+
+    // Chapter 8 executable
+    const ch08_exe = b.addExecutable(.{
+        .name = "ch08",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/ch08-main.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "binchunk", .module = binchunk_mod },
+                .{ .name = "state", .module = state_mod },
+                .{ .name = "vm", .module = vm_mod },
+                .{ .name = "api", .module = api_mod },
+            },
+        }),
+    });
+
+    b.installArtifact(ch08_exe);
+
+    const run_ch08 = b.addRunArtifact(ch08_exe);
+    const run_ch08_step = b.step("ch08", "Run chapter 8 application");
+    run_ch08_step.dependOn(&run_ch08.step);
+
+    // Make sure ch08 step also installs the executable
+    run_ch08_step.dependOn(b.getInstallStep());
+
+    if (b.args) |args| {
+        run_ch08.addArgs(args);
     }
 }

@@ -7,7 +7,7 @@ const CompareOp = apiNSP.CompareOp;
 const binchunk = @import("binchunk").binchunk;
 const Instruction = @import("vm").Instruction;
 const LuaState = @import("state").LuaState;
-const LuaValue = @import("api").LuaValueNSP.LuaValue;
+const LuaValue = @import("binchunk").LuaValueNSP.LuaValue;
 const LuaVM = @import("vm").LuaVM;
 const OpCode = @import("vm").OpCode;
 
