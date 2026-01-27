@@ -22,7 +22,7 @@ const convertToBoolean = LuaValueNSP.convertToBoolean;
 const convertToInteger = LuaValueNSP.convertToInteger;
 const convertToFloat = LuaValueNSP.convertToFloat;
 const typeof = binchunkMod.LuaValueNSP.typeOf;
-const LuaStack = @import("state").LuaStack;
+const LuaStack = @import("lua_stack.zig").LuaStack;
 const number = @import("number");
 
 const Instruction = @import("instruction.zig").Instruction;
