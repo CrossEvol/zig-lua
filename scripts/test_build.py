@@ -1,0 +1,66 @@
+#!/usr/bin/env python3
+"""
+Execute test commands and save output to .zig-cache/outputs/chxx.output files.
+"""
+
+import subprocess
+from pathlib import Path
+
+
+def execute_command(command: str) -> str:
+    """
+    Execute a command and return its output (stdout + stderr).
+    Does not check for success/failure.
+    """
+    try:
+        result = subprocess.run(
+            command,
+            shell=True,
+            capture_output=True,
+            text=True,
+            cwd=Path(__file__).parent.parent,
+        )
+        output = result.stdout + result.stderr
+        return output
+    except Exception as e:
+        return f"Error executing command: {e}\n"
+
+
+def main():
+    """
+    Execute hardcoded test commands and save outputs.
+    """
+    # Hardcoded test commands for each chapter
+    test_commands = {
+        "ch02": "zig build ch02 && .\\zig-out\\bin\\ch02.exe .\\test_data\\luac.out",
+        "ch03": "zig build ch03 && .\\zig-out\\bin\\ch03.exe .\\test_data\\luac.out",
+        "ch04": "zig build ch04",
+        "ch05": "zig build ch05",
+        "ch06": "zig build ch06 && .\\zig-out\\bin\\ch06.exe .\\test_data\\sum.out",
+        "ch07": "zig build ch07 && .\\zig-out\\bin\\ch07.exe .\\test_data\\test.out",
+        "ch08": "zig build ch08 && .\\zig-out\\bin\\ch08.exe .\\test_data\\test08.luac",
+    }
+
+    # Ensure output directory exists
+    output_dir = Path(__file__).parent.parent / ".zig-cache" / "outputs"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Execute commands and save outputs (in reverse order)
+    for chapter, cmd in sorted(test_commands.items(), reverse=True):
+        output_file = output_dir / f"{chapter}.output"
+
+        print(f"Executing: {cmd}")
+        print(f"Output to: {output_file}")
+
+        # Execute command and capture output
+        output = execute_command(cmd)
+
+        # Write output to file
+        with open(output_file, "w", encoding="utf-8") as f:
+            f.write(output)
+
+        print("Done. Output saved.\n")
+
+
+if __name__ == "__main__":
+    main()
