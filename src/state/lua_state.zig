@@ -1,36 +1,33 @@
 const std = @import("std");
 const math = std.math;
 
-const api = @import("api");
+const api = @import("../api/root.zig").Api;
 const LuaType = api.LuaType;
 const ArithOp = api.ArithOp;
 const CompareOp = api.CompareOp;
-const api_arith = @import("state");
-const operators = api_arith.operators;
-const _arith = api_arith._arith;
-const api_compare = @import("state");
-const _eq = api_compare._eq;
-const _lt = api_compare._lt;
-const _le = api_compare._le;
-const binchunkMod = @import("binchunk");
-const Closure = binchunkMod.Closure;
-const LuaTable = binchunkMod.LuaTable;
-const LuaValueNSP = binchunkMod.LuaValueNSP;
-const binchunk = binchunkMod.binchunk;
-const LuaValue = LuaValueNSP.LuaValue;
-const convertToBoolean = LuaValueNSP.convertToBoolean;
-const convertToInteger = LuaValueNSP.convertToInteger;
-const convertToFloat = LuaValueNSP.convertToFloat;
-const typeof = binchunkMod.LuaValueNSP.typeOf;
-const LuaStack = @import("lua_stack.zig").LuaStack;
-const number = @import("number");
-
-const Instruction = @import("instruction.zig").Instruction;
-const OpCode = @import("opcodes.zig").OpCode;
-const vm = @import("lua_vm.zig");
+const binchunk = @import("../binchunk/root.zig").binchunk;
+const number = @import("../number/root.zig").number;
+const state = @import("../state/root.zig").state;
+const operators = state.operators;
+const _arith = state._arith;
+const _eq = state._eq;
+const _lt = state._lt;
+const _le = state._le;
+const vm = @import("../vm/root.zig").vm;
 const LuaVM = vm.LuaVM;
+const OpCode = vm.OpCode;
+const Instruction = vm.Instruction;
+const Closure = @import("closure.zig").Closure;
+const convertToBoolean = @import("lua_value.zig").convertToBoolean;
+const convertToFloat = @import("lua_value.zig").convertToFloat;
+const convertToInteger = @import("lua_value.zig").convertToInteger;
+const LuaStack = @import("lua_stack.zig").LuaStack;
+const LuaTable = @import("lua_table.zig").LuaTable;
+const LuaValue = @import("lua_value.zig").LuaValue;
+const typeof = @import("lua_value.zig").typeOf;
 
 const string = []const u8;
+
 pub const LuaState = struct {
     stack: *LuaStack,
     allocator: std.mem.Allocator,
@@ -569,7 +566,7 @@ pub const LuaState = struct {
     /// **************************  api_closure  **************************
 
     // api_closure
-    pub fn setClosure(self: *LuaState, proto: *binchunkMod.Prototype) void {
+    pub fn setClosure(self: *LuaState, proto: *binchunk.Prototype) void {
         const closure = self.allocator.create(Closure) catch @panic("allocation failed");
         closure.* = Closure.init(proto);
         self.stack.closure = closure;

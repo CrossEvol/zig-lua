@@ -1,8 +1,7 @@
 const std = @import("std");
 const math = std.math;
 
-const number = @import("number");
-
+const number = @import("../number/root.zig").number;
 const LuaValue = @import("lua_value.zig").LuaValue;
 
 pub const LuaTable = struct {

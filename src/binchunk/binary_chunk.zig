@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const LuaValue = @import("lua_value.zig").LuaValue;
+const LuaValue = @import("../state/lua_value.zig").LuaValue;
 const Reader = @import("reader.zig").Reader;
 
 const byte = u8;

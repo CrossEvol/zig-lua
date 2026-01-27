@@ -1,7 +1,9 @@
 const std = @import("std");
 
-const Closure = @import("binchunk").Closure;
-const LuaValue = @import("binchunk").LuaValueNSP.LuaValue;
+const binchunk = @import("../binchunk/root.zig").binchunk;
+pub const Closure = @import("closure.zig").Closure;
+pub const LuaTable = @import("lua_table.zig").LuaTable;
+pub const LuaValue = @import("lua_value.zig").LuaValue;
 
 pub const LuaStack = struct {
     // virtual stack

@@ -1,6 +1,7 @@
 const std = @import("std");
 
-const LuaValue = @import("binchunk").LuaValueNSP.LuaValue;
+const binchunk = @import("../binchunk/root.zig").binchunk;
+const LuaValue = @import("lua_value.zig").LuaValue;
 
 pub fn _eq(a: LuaValue, b: LuaValue) bool {
     return switch (a) {

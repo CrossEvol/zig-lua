@@ -1,7 +1,7 @@
-const ArithOp = @import("api").ArithOp;
-const CompareOp = @import("api").CompareOp;
-const LuaType = @import("api").LuaType;
-
+const api = @import("../api/root.zig").Api;
+const ArithOp = api.ArithOp;
+const CompareOp = api.CompareOp;
+const LuaType = api.LuaType;
 const Instruction = @import("instruction.zig").Instruction;
 const LuaVM = @import("lua_vm.zig").LuaVM;
 

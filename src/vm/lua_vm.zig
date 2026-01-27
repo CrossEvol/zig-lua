@@ -1,11 +1,11 @@
 const std = @import("std");
 
-const ArithOp = @import("api").ArithOp;
-const binchunk = @import("binchunk");
-const CompareOp = @import("api").CompareOp;
-const LuaType = @import("api").LuaType;
-
-const LuaState = @import("lua_state.zig").LuaState;
+const api = @import("../api/root.zig").Api;
+const ArithOp = api.ArithOp;
+const CompareOp = api.CompareOp;
+const LuaType = api.LuaType;
+const binchunk = @import("../binchunk/root.zig").binchunk;
+const LuaState = @import("../state/root.zig").state.LuaState;
 
 const string = []const u8;
 

@@ -1,9 +1,8 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
-const binchunk = @import("binchunk").binchunk;
-const Instruction = @import("vm").Instruction;
-const LuaValue = @import("binchunk").LuaValueNSP.LuaValue;
+const binchunk = @import("binchunk/root.zig").binchunk;
+const LuaValue = @import("state/root.zig").state.LuaValue;
 
 const string = []const u8;
 const int = i32;
@@ -83,53 +82,7 @@ fn printCode(f: *binchunk.Prototype, allocator: Allocator) !void {
             allocated_line = try std.fmt.allocPrint(allocator, fmt, .{f.line_info[pc]});
             line = allocated_line.?;
         }
-
-        const i: Instruction = @bitCast(c);
-        std.debug.print("\t{d}\t[{s}]\t{s} \t", .{ pc + 1, line, i.opName() });
-        printOperands(i);
-        std.debug.print("\n", .{});
-    }
-}
-
-fn printOperands(i: Instruction) void {
-    switch (i.opMode()) {
-        .IABC => {
-            const a, const b, const c = i.ABC();
-
-            std.debug.print("{d}", .{a});
-            if (i.bMode() != .OpArgN) {
-                if (b > 0xFF) {
-                    std.debug.print(" {d}", .{-1 - (b & 0xFF)});
-                } else {
-                    std.debug.print(" {d}", .{b});
-                }
-            }
-            if (i.cMode() != .OpArgN) {
-                if (c > 0xFF) {
-                    std.debug.print(" {d}", .{-1 - (c & 0xFF)});
-                } else {
-                    std.debug.print(" {d}", .{c});
-                }
-            }
-        },
-        .IABx => {
-            const a, const bx = i.ABx();
-
-            std.debug.print("{d}", .{a});
-            if (i.bMode() == .OpArgK) {
-                std.debug.print(" {d}", .{-1 - bx});
-            } else if (i.bMode() == .OpArgU) {
-                std.debug.print(" {d}", .{bx});
-            }
-        },
-        .IAsBx => {
-            const a, const sbx = i.AsBx();
-            std.debug.print("{d} {d}", .{ a, sbx });
-        },
-        .IAx => {
-            const ax = i.Ax();
-            std.debug.print("{d}", .{-1 - ax});
-        },
+        std.debug.print("\t{d}\t[{s}]\t0x{X:0>8}\n", .{ pc + 1, line, c });
     }
 }
 

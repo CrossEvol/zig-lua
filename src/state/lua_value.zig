@@ -1,8 +1,7 @@
 const std = @import("std");
 
-const LuaType = @import("api").LuaType;
-const number = @import("number");
-
+const LuaType = @import("../api/root.zig").Api.LuaType;
+const number = @import("../number/root.zig").number;
 const Closure = @import("closure.zig").Closure;
 const LuaTable = @import("lua_table.zig").LuaTable;
 

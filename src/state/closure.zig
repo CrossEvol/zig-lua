@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const binchunk = @import("binary_chunk.zig");
+const binchunk = @import("../binchunk/root.zig").binchunk;
 
 pub const Closure = struct {
     proto: *binchunk.Prototype,

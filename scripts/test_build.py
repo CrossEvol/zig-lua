@@ -41,8 +41,12 @@ def main():
         "ch08": "zig build ch08 && .\\zig-out\\bin\\ch08.exe .\\test_data\\test08.luac",
     }
 
-    # Ensure output directory exists
+    # Clear previous outputs and ensure output directory exists
     output_dir = Path(__file__).parent.parent / ".zig-cache" / "outputs"
+    if output_dir.exists():
+        # Remove all files in the output directory
+        for file in output_dir.glob("*.output"):
+            file.unlink()
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Execute commands and save outputs (in reverse order)

@@ -41,46 +41,6 @@ pub fn build(b: *std.Build) void {
         .target = target,
     });
 
-    // Create modules for different components
-    const number_mod = b.addModule("number", .{
-        .root_source_file = b.path("src/number/root.zig"),
-        .target = target,
-        .imports = &.{},
-    });
-    const api_mod = b.addModule("api", .{
-        .root_source_file = b.path("src/api/root.zig"),
-        .target = target,
-        .imports = &.{
-            .{ .name = "number", .module = number_mod },
-        },
-    });
-    const binchunk_mod = b.addModule("binchunk", .{
-        .root_source_file = b.path("src/binchunk/root.zig"),
-        .target = target,
-        .imports = &.{
-            .{ .name = "api", .module = api_mod },
-            .{ .name = "number", .module = number_mod },
-        },
-    });
-    const state_mod = b.addModule("state", .{
-        .root_source_file = b.path("src/state/root.zig"),
-        .target = target,
-        .imports = &.{
-            .{ .name = "api", .module = api_mod },
-            .{ .name = "number", .module = number_mod },
-            .{ .name = "binchunk", .module = binchunk_mod },
-        },
-    });
-    const vm_mod = b.addModule("vm", .{
-        .root_source_file = b.path("src/vm/root.zig"),
-        .target = target,
-        .imports = &.{
-            .{ .name = "api", .module = api_mod },
-            .{ .name = "binchunk", .module = binchunk_mod },
-            .{ .name = "state", .module = state_mod },
-        },
-    });
-
     // Main executable
     const exe = b.addExecutable(.{
         .name = "zig_lua",
@@ -172,11 +132,7 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("src/ch02-main.zig"),
             .target = target,
             .optimize = optimize,
-            .imports = &.{
-                .{ .name = "api", .module = api_mod },
-                .{ .name = "binchunk", .module = binchunk_mod },
-                .{ .name = "state", .module = state_mod },
-            },
+            .imports = &.{},
         }),
     });
 
@@ -200,12 +156,7 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("src/ch03-main.zig"),
             .target = target,
             .optimize = optimize,
-            .imports = &.{
-                .{ .name = "api", .module = api_mod },
-                .{ .name = "binchunk", .module = binchunk_mod },
-                .{ .name = "state", .module = state_mod },
-                .{ .name = "vm", .module = vm_mod },
-            },
+            .imports = &.{},
         }),
     });
 
@@ -229,12 +180,7 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("src/ch04-main.zig"),
             .target = target,
             .optimize = optimize,
-            .imports = &.{
-                .{ .name = "binchunk", .module = binchunk_mod },
-                .{ .name = "state", .module = state_mod },
-                .{ .name = "vm", .module = vm_mod },
-                .{ .name = "api", .module = api_mod },
-            },
+            .imports = &.{},
         }),
     });
 
@@ -258,12 +204,7 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("src/ch05-main.zig"),
             .target = target,
             .optimize = optimize,
-            .imports = &.{
-                .{ .name = "binchunk", .module = binchunk_mod },
-                .{ .name = "state", .module = state_mod },
-                .{ .name = "vm", .module = vm_mod },
-                .{ .name = "api", .module = api_mod },
-            },
+            .imports = &.{},
         }),
     });
 
@@ -287,12 +228,7 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("src/ch06-main.zig"),
             .target = target,
             .optimize = optimize,
-            .imports = &.{
-                .{ .name = "binchunk", .module = binchunk_mod },
-                .{ .name = "state", .module = state_mod },
-                .{ .name = "vm", .module = vm_mod },
-                .{ .name = "api", .module = api_mod },
-            },
+            .imports = &.{},
         }),
     });
 
@@ -316,12 +252,7 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("src/ch07-main.zig"),
             .target = target,
             .optimize = optimize,
-            .imports = &.{
-                .{ .name = "binchunk", .module = binchunk_mod },
-                .{ .name = "state", .module = state_mod },
-                .{ .name = "vm", .module = vm_mod },
-                .{ .name = "api", .module = api_mod },
-            },
+            .imports = &.{},
         }),
     });
 
@@ -345,12 +276,7 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("src/ch08-main.zig"),
             .target = target,
             .optimize = optimize,
-            .imports = &.{
-                .{ .name = "binchunk", .module = binchunk_mod },
-                .{ .name = "state", .module = state_mod },
-                .{ .name = "vm", .module = vm_mod },
-                .{ .name = "api", .module = api_mod },
-            },
+            .imports = &.{},
         }),
     });
 

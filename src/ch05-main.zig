@@ -1,13 +1,14 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
-const apiNSP = @import("api");
-const ArithOp = apiNSP.ArithOp;
-const CompareOp = apiNSP.CompareOp;
-const binchunk = @import("binchunk").binchunk;
-const Instruction = @import("vm").Instruction;
-const LuaState = @import("vm").LuaState;
-const LuaValue = @import("binchunk").LuaValueNSP.LuaValue;
+const api = @import("api/root.zig").Api;
+const ArithOp = api.ArithOp;
+const CompareOp = api.CompareOp;
+const binchunk = @import("binchunk/root.zig").binchunk;
+const LuaValue = @import("state/root.zig").state.LuaValue;
+const LuaState = @import("state/root.zig").state.LuaState;
+const vm = @import("vm/root.zig").vm;
+const Instruction = vm.Instruction;
 
 const string = []const u8;
 const int = i32;
