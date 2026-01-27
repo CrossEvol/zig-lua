@@ -6,6 +6,7 @@ const LuaValue = @import("lua_value.zig").LuaValue;
 
 pub const LuaTable = struct {
     allocator: std.mem.Allocator,
+    ref_count: u32,
     arr: std.ArrayList(LuaValue),
     map: std.HashMap(
         LuaValue,
@@ -32,6 +33,7 @@ pub const LuaTable = struct {
 
         return .{
             .allocator = allocator,
+            .ref_count = 1,
             .arr = arr,
             .map = map,
         };
@@ -53,17 +55,39 @@ pub const LuaTable = struct {
         self.map.deinit();
     }
 
+    pub fn retain(self: *LuaTable) void {
+        self.ref_count += 1;
+    }
+
+    pub fn release(self: *LuaTable, allocator: std.mem.Allocator) void {
+        self.ref_count -= 1;
+        if (self.ref_count == 0) {
+            self.deinit();
+            allocator.destroy(self);
+        }
+    }
+
+    /// Get a value from the table.
+    /// Return a clone (new ownership) of the value.
+    /// The caller is responsible for calling .deinit() on the returned value.
     pub fn get(self: *LuaTable, key: LuaValue) LuaValue {
         const k1 = _floatToInteger(key);
         if (std.meta.activeTag(k1) == .int64) {
             const idx = k1.int64;
             if (idx >= 1 and idx <= @as(i64, @intCast(self.arr.items.len))) {
-                return self.arr.items[@as(usize, @intCast(idx - 1))];
+                return self.arr.items[@as(usize, @intCast(idx - 1))].clone(self.allocator);
             }
         }
-        return self.map.get(k1) orelse .{ .nil = {} };
+        if (self.map.get(k1)) |v| {
+            return v.clone(self.allocator);
+        } else {
+            return .{ .nil = {} };
+        }
     }
 
+    /// Put a key-value pair into the table.
+    /// Clones both key and value to ensure the table has full ownership
+    /// of its internal data. The caller still owns the passed arguments.
     pub fn put(self: *LuaTable, key: LuaValue, val: LuaValue) void {
         if (std.meta.activeTag(key) == .nil) {
             @panic("table index is nil!");

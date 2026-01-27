@@ -5,6 +5,7 @@ const ArithOp = api.ArithOp;
 const CompareOp = api.CompareOp;
 const LuaType = api.LuaType;
 const binchunk = @import("../binchunk/root.zig").binchunk;
+const ZigFunction = @import("../state/closure.zig").ZigFunction;
 const LuaState = @import("../state/root.zig").state.LuaState;
 
 const string = []const u8;
@@ -112,6 +113,12 @@ pub const LuaVM = struct {
     }
 
     // [-0, +0, –]
+    // http://www.lua.org/manual/5.3/manual.html#lua_iscfunction
+    pub fn isZigFunction(self: *LuaVM, idx: i32) bool {
+        return self.ls.isZigFunction(idx);
+    }
+
+    // [-0, +0, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_toboolean
     pub fn toBoolean(self: *LuaVM, idx: i32) bool {
         return self.ls.toBoolean(idx);
@@ -149,6 +156,12 @@ pub const LuaVM = struct {
 
     pub fn toStringX(self: *LuaVM, idx: i32) struct { []const u8, bool } {
         return self.ls.toStringX(idx);
+    }
+
+    // [-0, +0, –]
+    // http://www.lua.org/manual/5.3/manual.html#lua_tocfunction
+    pub fn toZigFunction(self: *LuaVM, idx: i32) ?ZigFunction {
+        return self.ls.toZigFunction(idx);
     }
 
     /// **************************  api_stack  **************************
@@ -251,6 +264,18 @@ pub const LuaVM = struct {
         self.ls.pushString(s);
     }
 
+    // [-0, +1, –]
+    // http://www.lua.org/manual/5.3/manual.html#lua_pushcfunction
+    pub fn pushZigFunction(self: *LuaVM, f: ZigFunction) void {
+        self.ls.pushZigFunction(f);
+    }
+
+    // [-0, +1, –]
+    // http://www.lua.org/manual/5.3/manual.html#lua_pushglobaltable
+    pub fn pushGlobalTable(self: *LuaVM) void {
+        self.ls.pushGlobalTable();
+    }
+
     /// **************************  api_arith  **************************
 
     // [-(2|1), +1, e]
@@ -335,6 +360,12 @@ pub const LuaVM = struct {
     }
 
     // [-0, +1, e]
+    // http://www.lua.org/manual/5.3/manual.html#lua_getglobal
+    pub fn getGlobal(self: *LuaVM, name: string) LuaType {
+        return self.ls.getGlobal(name);
+    }
+
+    // [-0, +1, e]
     // http://www.lua.org/manual/5.3/manual.html#lua_getfield
     pub fn getField(self: *LuaVM, idx: i32, k: []const u8) LuaType {
         return self.ls.getField(idx, k);
@@ -364,6 +395,18 @@ pub const LuaVM = struct {
     // http://www.lua.org/manual/5.3/manual.html#lua_seti
     pub fn setI(self: *LuaVM, idx: i32, i: i64) void {
         self.ls.setI(idx, i);
+    }
+
+    // [-1, +0, e]
+    // http://www.lua.org/manual/5.3/manual.html#lua_setglobal
+    pub fn setGlobal(self: *LuaVM, name: string) void {
+        self.ls.getGlobal(name);
+    }
+
+    // [-0, +0, e]
+    // http://www.lua.org/manual/5.3/manual.html#lua_register
+    pub fn register(self: *LuaVM, name: string, f: ZigFunction) void {
+        self.ls.register(name, f);
     }
 
     /// **************************  api_closure  **************************

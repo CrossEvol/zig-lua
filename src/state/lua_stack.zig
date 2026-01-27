@@ -1,7 +1,9 @@
 const std = @import("std");
 
+const LUA_REGISTRYINDEX = @import("../api/root.zig").Api.LUA_REGISTRYINDEX;
 const binchunk = @import("../binchunk/root.zig").binchunk;
 pub const Closure = @import("closure.zig").Closure;
+pub const LuaState = @import("lua_state.zig").LuaState;
 pub const LuaTable = @import("lua_table.zig").LuaTable;
 pub const LuaValue = @import("lua_value.zig").LuaValue;
 
@@ -11,6 +13,7 @@ pub const LuaStack = struct {
     top: usize,
 
     // call info
+    state: ?*LuaState,
     closure: ?*Closure,
     varargs: ?[]LuaValue,
     pc: i32,
@@ -21,7 +24,7 @@ pub const LuaStack = struct {
     // memory management
     allocator: std.mem.Allocator,
 
-    pub fn init(size: usize, allocator: std.mem.Allocator) !LuaStack {
+    pub fn init(allocator: std.mem.Allocator, size: usize, state: ?*LuaState) !LuaStack {
         var slots = try std.ArrayList(LuaValue).initCapacity(allocator, size);
         try slots.ensureTotalCapacity(allocator, size);
         try slots.appendNTimes(allocator, .{ .nil = {} }, size);
@@ -29,6 +32,7 @@ pub const LuaStack = struct {
         return .{
             .slots = slots,
             .top = 0,
+            .state = state,
             .closure = null,
             .varargs = null,
             .pc = 0,
@@ -58,6 +62,8 @@ pub const LuaStack = struct {
         }
     }
 
+    /// Push a value onto the stack.
+    /// The stack takes full ownership of the value.
     pub fn push(self: *LuaStack, val: LuaValue) void {
         if (self.top == self.slots.items.len) {
             @panic("stack overflow");
@@ -66,6 +72,8 @@ pub const LuaStack = struct {
         self.top += 1;
     }
 
+    /// Pop a value from the stack and return it.
+    /// Transfers ownership of the value back to the caller.
     pub fn pop(self: *LuaStack) LuaValue {
         if (self.top < 1) {
             @panic("stack underflow!");
@@ -77,7 +85,7 @@ pub const LuaStack = struct {
     }
 
     pub fn absIndex(self: *LuaStack, idx: i32) usize {
-        if (idx >= 0) {
+        if (idx >= 0 or idx <= @as(i32, @intCast(LUA_REGISTRYINDEX))) {
             return @intCast(idx);
         }
 
@@ -85,11 +93,23 @@ pub const LuaStack = struct {
     }
 
     pub fn isValid(self: *LuaStack, idx: i32) bool {
+        if (idx == @as(i32, @intCast(LUA_REGISTRYINDEX))) {
+            return true;
+        }
         const absIdx = self.absIndex(idx);
         return absIdx > 0 and absIdx <= self.top;
     }
 
+    /// Get a value from the stack by index.
+    /// Returns a reference (borrowing). NO cloning is performed here.
+    /// If the caller needs to keep the value beyond the current stack
+    /// operation, they MUST clone it themselves.
     pub fn get(self: *LuaStack, idx: i32) LuaValue {
+        if (idx == @as(i32, @intCast(LUA_REGISTRYINDEX))) {
+            // Return the value without cloning - caller is responsible for cloning if needed
+            return .{ .lua_table = self.state.?.registry };
+        }
+
         const absIdx = self.absIndex(idx);
         if (absIdx > 0 and absIdx <= self.top) {
             // Return the value without cloning - caller is responsible for cloning if needed
@@ -98,7 +118,17 @@ pub const LuaStack = struct {
         return .{ .nil = {} };
     }
 
+    /// Set a value at the specified stack index.
+    /// The stack takes full ownership of the new value.
+    /// The previous value at this index is automatically de-initialized.
     pub fn set(self: *LuaStack, idx: i32, val: LuaValue) void {
+        if (idx == @as(i32, @intCast(LUA_REGISTRYINDEX))) {
+            const old_registry = self.state.?.registry;
+            self.state.?.registry = val.lua_table;
+            old_registry.release(self.allocator);
+            return;
+        }
+
         const absIdx = self.absIndex(idx);
         if (absIdx > 0 and absIdx <= self.top) {
             // Free the old value before replacing it

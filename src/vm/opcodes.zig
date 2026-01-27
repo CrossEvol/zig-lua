@@ -45,6 +45,8 @@ const newTable = InstTable.newTable;
 const getTable = InstTable.getTable;
 const setTable = InstTable.setTable;
 const setList = InstTable.setList;
+const InstUpvalue = @import("inst_upvalue.zig");
+const getTabUp = InstUpvalue.getTabUp;
 const LuaVM = @import("lua_vm.zig").LuaVM;
 
 // inst functions
@@ -147,7 +149,7 @@ pub const opcodes = [_]OpCodeStruct{
     opcode(0, 1, .OpArgU, .OpArgU, .IABC, "LOADBOOL", loadBool), // R(A) := (bool)B; if (C) pc++
     opcode(0, 1, .OpArgU, .OpArgN, .IABC, "LOADNIL ", loadNil), // R(A), R(A+1), ..., R(A+B) := nil
     opcode(0, 1, .OpArgU, .OpArgN, .IABC, "GETUPVAL", null), // R(A) := UpValue[B]
-    opcode(0, 1, .OpArgU, .OpArgK, .IABC, "GETTABUP", null), // R(A) := UpValue[B][RK(C)]
+    opcode(0, 1, .OpArgU, .OpArgK, .IABC, "GETTABUP", getTabUp), // R(A) := UpValue[B][RK(C)]
     opcode(0, 1, .OpArgR, .OpArgK, .IABC, "GETTABLE", getTable), // R(A) := R(B)[RK(C)]
     opcode(0, 0, .OpArgK, .OpArgK, .IABC, "SETTABUP", null), // UpValue[A][RK(B)] := RK(C)
     opcode(0, 0, .OpArgU, .OpArgN, .IABC, "SETUPVAL", null), // UpValue[B] := R(A)

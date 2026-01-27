@@ -20,10 +20,7 @@ pub const LuaValue = union(enum) {
     pub fn deinit(self: *LuaValue, allocator: std.mem.Allocator) void {
         switch (self.*) {
             .string => |s| allocator.free(s),
-            .lua_table => |t| {
-                t.deinit();
-                allocator.destroy(t);
-            },
+            .lua_table => |t| t.release(allocator),
             .closure => |c| c.release(allocator),
             .lua_state => |s| allocator.destroy(s),
             else => {},
@@ -33,6 +30,10 @@ pub const LuaValue = union(enum) {
     pub fn clone(self: LuaValue, allocator: std.mem.Allocator) LuaValue {
         return switch (self) {
             .string => |s| .{ .string = allocator.dupe(u8, s) catch @panic("clone allocation failed") },
+            .lua_table => |t| {
+                t.retain();
+                return self;
+            },
             .closure => |c| {
                 c.retain();
                 return self;

@@ -292,4 +292,28 @@ pub fn build(b: *std.Build) void {
     if (b.args) |args| {
         run_ch08.addArgs(args);
     }
+
+    // Chapter 9 executable
+    const ch09_exe = b.addExecutable(.{
+        .name = "ch09",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/ch09-main.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{},
+        }),
+    });
+
+    b.installArtifact(ch09_exe);
+
+    const run_ch09 = b.addRunArtifact(ch09_exe);
+    const run_ch09_step = b.step("ch09", "Run chapter 9 application");
+    run_ch09_step.dependOn(&run_ch09.step);
+
+    // Make sure ch09 step also installs the executable
+    run_ch09_step.dependOn(b.getInstallStep());
+
+    if (b.args) |args| {
+        run_ch09.addArgs(args);
+    }
 }

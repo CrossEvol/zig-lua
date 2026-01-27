@@ -1,3 +1,8 @@
+pub const LUA_MINSTACK = 20;
+const LUAI_MAXSTACK = 1000000;
+pub const LUA_REGISTRYINDEX = -LUAI_MAXSTACK - 1000;
+pub const LUA_RIDX_GLOBALS = 2;
+
 pub const LuaType = enum(i8) {
     lua_t_none = -1,
     lua_t_nil = 0,

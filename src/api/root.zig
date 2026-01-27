@@ -4,4 +4,7 @@ pub const Api = struct {
     pub const LuaType = consts.LuaType;
     pub const ArithOp = consts.ArithOp;
     pub const CompareOp = consts.CompareOp;
+    pub const LUA_MINSTACK = consts.LUA_MINSTACK;
+    pub const LUA_REGISTRYINDEX = consts.LUA_REGISTRYINDEX;
+    pub const LUA_RIDX_GLOBALS = consts.LUA_RIDX_GLOBALS;
 };
