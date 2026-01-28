@@ -6,6 +6,7 @@ const CompareOp = api.CompareOp;
 const LuaType = api.LuaType;
 const binchunk = @import("../binchunk/root.zig").binchunk;
 const ZigFunction = @import("../state/closure.zig").ZigFunction;
+const LuaString = @import("../state/lua_string.zig").LuaString;
 const LuaState = @import("../state/root.zig").state.LuaState;
 
 const string = []const u8;
@@ -150,11 +151,11 @@ pub const LuaVM = struct {
 
     // [-0, +0, m]
     // http://www.lua.org/manual/5.3/manual.html#lua_tostring
-    pub fn toString(self: *LuaVM, idx: i32) []const u8 {
+    pub fn toString(self: *LuaVM, idx: i32) *LuaString {
         return self.ls.toString(idx);
     }
 
-    pub fn toStringX(self: *LuaVM, idx: i32) struct { []const u8, bool } {
+    pub fn toStringX(self: *LuaVM, idx: i32) struct { *LuaString, bool } {
         return self.ls.toStringX(idx);
     }
 

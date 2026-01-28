@@ -166,11 +166,11 @@ fn printDetail(f: *binchunk.Prototype, allocator: Allocator) !void {
 
 fn constantToString(k: LuaValue, allocator: Allocator) ![]const u8 {
     return switch (k) {
-        LuaValue.nil => "nil",
-        LuaValue.bool => |b| try std.fmt.allocPrint(allocator, "{s}", .{if (b) "true" else "false"}),
-        LuaValue.float64 => |f| try std.fmt.allocPrint(allocator, "{d}", .{f}),
-        LuaValue.int64 => |i| try std.fmt.allocPrint(allocator, "{d}", .{i}),
-        LuaValue.string => |s| try std.fmt.allocPrint(allocator, "\"{s}\"", .{s}),
+        .nil => "nil",
+        .bool => |b| try std.fmt.allocPrint(allocator, "{s}", .{if (b) "true" else "false"}),
+        .float64 => |f| try std.fmt.allocPrint(allocator, "{d}", .{f}),
+        .int64 => |i| try std.fmt.allocPrint(allocator, "{d}", .{i}),
+        .string => |s| try std.fmt.allocPrint(allocator, "\"{s}\"", .{s.data()}),
         else => "?",
     };
 }

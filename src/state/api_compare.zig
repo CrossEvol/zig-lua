@@ -11,7 +11,7 @@ pub fn _eq(a: LuaValue, b: LuaValue) bool {
             else => false,
         },
         .string => |x| switch (b) {
-            .string => |y| std.mem.eql(u8, x, y),
+            .string => |y| x.hash() == y.hash(),
             else => false,
         },
         .int64 => |x| switch (b) {
@@ -31,7 +31,7 @@ pub fn _eq(a: LuaValue, b: LuaValue) bool {
 pub fn _lt(a: LuaValue, b: LuaValue) bool {
     return switch (a) {
         .string => |x| switch (b) {
-            .string => |y| std.mem.lessThan(u8, x, y),
+            .string => |y| std.mem.lessThan(u8, x.data(), y.data()),
             else => @panic("comparison error!"),
         },
         .int64 => |x| switch (b) {
@@ -51,7 +51,7 @@ pub fn _lt(a: LuaValue, b: LuaValue) bool {
 pub fn _le(a: LuaValue, b: LuaValue) bool {
     return switch (a) {
         .string => |x| switch (b) {
-            .string => |y| std.mem.order(u8, x, y) != .gt,
+            .string => |y| std.mem.order(u8, x.data(), y.data()) != .gt,
             else => @panic("comparison error!"),
         },
         .int64 => |x| switch (b) {

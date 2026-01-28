@@ -24,6 +24,7 @@ const convertToBoolean = @import("lua_value.zig").convertToBoolean;
 const convertToFloat = @import("lua_value.zig").convertToFloat;
 const convertToInteger = @import("lua_value.zig").convertToInteger;
 const LuaStack = @import("lua_stack.zig").LuaStack;
+const LuaString = @import("lua_string.zig").LuaString;
 const LuaTable = @import("lua_table.zig").LuaTable;
 const LuaValue = @import("lua_value.zig").LuaValue;
 const typeof = @import("lua_value.zig").typeOf;
@@ -211,27 +212,34 @@ pub const LuaState = struct {
 
     // [-0, +0, m]
     // http://www.lua.org/manual/5.3/manual.html#lua_tostring
-    pub fn toString(self: *LuaState, idx: i32) string {
+    pub fn toString(self: *LuaState, idx: i32) *LuaString {
         const s, const ok = self.toStringX(idx);
         _ = ok;
         return s;
     }
 
-    pub fn toStringX(self: *LuaState, idx: i32) struct { string, bool } {
+    pub fn toStringX(self: *LuaState, idx: i32) struct { *LuaString, bool } {
         const val = self.stack.?.get(idx);
         switch (val) {
             .string => |x| return .{ x, true },
             .int64 => |x| {
                 const s = std.fmt.allocPrint(self.allocator, "{d}", .{x}) catch @panic("allocation failed");
-                self.stack.?.set(idx, .{ .string = s });
-                return .{ s, true };
+                defer self.allocator.free(s);
+                const lua_string = LuaString.create(self.allocator, s);
+                self.stack.?.set(idx, .{ .string = lua_string });
+                return .{ lua_string, true };
             },
             .float64 => |x| {
                 const s = std.fmt.allocPrint(self.allocator, "{d}", .{x}) catch @panic("allocation failed");
-                self.stack.?.set(idx, .{ .string = s });
-                return .{ s, true };
+                defer self.allocator.free(s);
+                const lua_string = LuaString.create(self.allocator, s);
+                self.stack.?.set(idx, .{ .string = lua_string });
+                return .{ lua_string, true };
             },
-            else => return .{ "", false },
+            else => {
+                const lua_string = LuaString.create(self.allocator, "");
+                return .{ lua_string, false };
+            },
         }
     }
 
@@ -372,8 +380,8 @@ pub const LuaState = struct {
     // [-0, +1, m]
     // http://www.lua.org/manual/5.3/manual.html#lua_pushstring
     pub fn pushString(self: *LuaState, s: string) void {
-        const dupe = self.allocator.dupe(u8, s) catch @panic("allocation failed");
-        self.stack.?.push(.{ .string = dupe });
+        const lua_string = LuaString.create(self.allocator, s);
+        self.stack.?.push(.{ .string = lua_string });
     }
 
     // [-0, +1, –]
@@ -437,7 +445,7 @@ pub const LuaState = struct {
         const val = self.stack.?.get(idx);
         switch (val) {
             .string => |s| {
-                self.stack.?.push(.{ .int64 = @intCast(s.len) });
+                self.stack.?.push(.{ .int64 = @intCast(s.len()) });
             },
             .lua_table => |t| {
                 self.stack.?.push(.{ .int64 = @intCast(t.len()) });
@@ -450,7 +458,8 @@ pub const LuaState = struct {
     // http://www.lua.org/manual/5.3/manual.html#lua_concat
     pub fn concat(self: *LuaState, n: i32) void {
         if (n == 0) {
-            self.stack.?.push(.{ .string = "" });
+            const empty_string = LuaString.create(self.allocator, "");
+            self.stack.?.push(.{ .string = empty_string });
         } else if (n >= 2) {
             for (1..@as(usize, @intCast(n))) |_| {
                 if (self.isString(-1) and self.isString(-2)) {
@@ -458,10 +467,12 @@ pub const LuaState = struct {
                     const s1 = self.toString(-2);
                     var lv2 = self.stack.?.pop();
                     var lv1 = self.stack.?.pop();
-                    const s = std.mem.concat(self.allocator, u8, &.{ s1, s2 }) catch @panic("allocation for concatenation failed");
+                    const s = std.mem.concat(self.allocator, u8, &.{ s1.bytes, s2.bytes }) catch @panic("allocation for concatenation failed");
+                    defer self.allocator.free(s);
                     lv2.deinit(self.allocator);
                     lv1.deinit(self.allocator);
-                    self.stack.?.push(.{ .string = s });
+                    const concat_string = LuaString.create(self.allocator, s);
+                    self.stack.?.push(.{ .string = concat_string });
                     continue;
                 }
 
@@ -559,14 +570,15 @@ pub const LuaState = struct {
     pub fn getGlobal(self: *LuaState, name: string) LuaType {
         const t = self.registry.get(.{ .int64 = LUA_RIDX_GLOBALS });
         defer t.lua_table.release(self.allocator);
-        return self._getTable(t, .{ .string = name });
+        const lua_string = LuaString.create(self.allocator, name);
+        return self._getTable(t, .{ .string = lua_string });
     }
 
     // [-0, +1, e]
     // http://www.lua.org/manual/5.3/manual.html#lua_getfield
     pub fn getField(self: *LuaState, idx: i32, k: string) LuaType {
         const t = self.stack.?.get(idx);
-        return self._getTable(t, .{ .string = k });
+        return self._getTable(t, .{ .string = LuaString.create(self.allocator, k) });
     }
 
     // [-0, +1, e]
@@ -606,7 +618,8 @@ pub const LuaState = struct {
         const t = self.stack.?.get(idx);
         var v = self.stack.?.pop();
         defer v.deinit(self.allocator);
-        var key = LuaValue{ .string = self.allocator.dupe(u8, k) catch @panic("allocation failed") };
+        const lua_string = LuaString.create(self.allocator, k);
+        var key = LuaValue{ .string = lua_string };
         defer key.deinit(self.allocator);
         self._setTable(t, key, v);
     }
@@ -627,7 +640,9 @@ pub const LuaState = struct {
         defer t.lua_table.release(self.allocator);
         var v = self.stack.?.pop();
         defer v.deinit(self.allocator);
-        self._setTable(t, .{ .string = name }, v);
+        const lua_string = LuaString.create(self.allocator, name);
+        defer lua_string.release(self.allocator); // it will be cloned when put
+        self._setTable(t, .{ .string = lua_string }, v);
     }
 
     // [-0, +0, e]

@@ -56,7 +56,7 @@ fn print(ls: *LuaState) i32 {
         if (ls.isBoolean(i)) {
             std.debug.print("{}", .{ls.toBoolean(i)});
         } else if (ls.isString(i)) {
-            std.debug.print("{s}", .{ls.toString(i)});
+            std.debug.print("{s}", .{ls.toString(i).data()});
         } else {
             std.debug.print("{s}", .{ls.typeName(ls.Type(i))});
         }

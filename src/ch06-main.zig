@@ -80,7 +80,7 @@ fn printStack(ls: *LuaVM) void {
                 std.debug.print("[{d}]", .{ls.toNumber(i)});
             },
             .lua_t_string => {
-                std.debug.print("[\"{s}\"]", .{ls.toString(i)});
+                std.debug.print("[\"{s}\"]", .{ls.toString(i).data()});
             },
             else => {
                 std.debug.print("[{s}]", .{ls.typeName(t)});

@@ -3,6 +3,7 @@ const std = @import("std");
 const LuaType = @import("../api/root.zig").Api.LuaType;
 const number = @import("../number/root.zig").number;
 const Closure = @import("closure.zig").Closure;
+const LuaString = @import("lua_string.zig").LuaString;
 const LuaTable = @import("lua_table.zig").LuaTable;
 
 const string = []const u8;
@@ -12,14 +13,14 @@ pub const LuaValue = union(enum) {
     bool: bool,
     int64: i64,
     float64: f64,
-    string: string,
+    string: *LuaString,
     lua_table: *LuaTable,
     closure: *Closure,
     lua_state: *struct {},
 
     pub fn deinit(self: *LuaValue, allocator: std.mem.Allocator) void {
         switch (self.*) {
-            .string => |s| allocator.free(s),
+            .string => |s| s.release(allocator),
             .lua_table => |t| t.release(allocator),
             .closure => |c| c.release(allocator),
             .lua_state => |s| allocator.destroy(s),
@@ -28,8 +29,12 @@ pub const LuaValue = union(enum) {
     }
 
     pub fn clone(self: LuaValue, allocator: std.mem.Allocator) LuaValue {
+        _ = allocator;
         return switch (self) {
-            .string => |s| .{ .string = allocator.dupe(u8, s) catch @panic("clone allocation failed") },
+            .string => |s| {
+                s.retain();
+                return self;
+            },
             .lua_table => |t| {
                 t.retain();
                 return self;
@@ -55,7 +60,7 @@ pub const LuaValue = union(enum) {
                 const bits: u64 = @bitCast(f);
                 std.hash.autoHash(&hasher, bits);
             },
-            .string => |s| hasher.update(s),
+            .string => |s| std.hash.autoHash(&hasher, s.hash()),
             .lua_table => |t| std.hash.autoHash(&hasher, @intFromPtr(t)),
             .closure => |c| std.hash.autoHash(&hasher, @intFromPtr(c)),
             .lua_state => |s| std.hash.autoHash(&hasher, @intFromPtr(s)),
@@ -73,7 +78,7 @@ pub const LuaValue = union(enum) {
             .bool => |b| b == other.bool,
             .int64 => |i| i == other.int64,
             .float64 => |f| f == other.float64,
-            .string => |s| std.mem.eql(u8, s, other.string),
+            .string => |s| s.hash() == other.string.hash(),
             .lua_table => |t| t == other.lua_table,
             .closure => |c| c == other.closure,
             .lua_state => |s| s == other.lua_state,
@@ -106,7 +111,7 @@ pub fn convertToFloat(val: LuaValue) struct { f64, bool } {
     return switch (val) {
         .int64 => |x| .{ @floatFromInt(x), true },
         .float64 => |x| .{ x, true },
-        .string => |x| number.parseFloat(x),
+        .string => |x| number.parseFloat(x.data()),
         else => .{ 0, false },
     };
 }
@@ -116,7 +121,7 @@ pub fn convertToInteger(val: LuaValue) struct { i64, bool } {
     return switch (val) {
         .int64 => |x| .{ x, true },
         .float64 => |x| number.FloatToInteger(x),
-        .string => |x| _stringToInteger(x),
+        .string => |x| _stringToInteger(x.data()),
         else => .{ 0, false },
     };
 }

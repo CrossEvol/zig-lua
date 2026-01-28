@@ -2,6 +2,7 @@ const std = @import("std");
 const testing = std.testing;
 const expect = testing.expect;
 
+const LuaString = @import("../state/lua_string.zig").LuaString;
 const LuaValue = @import("../state/lua_value.zig").LuaValue;
 const Header = @import("binary_chunk.zig").Header;
 const LocVar = @import("binary_chunk.zig").LocVar;
@@ -160,7 +161,7 @@ pub const Reader = struct {
             @intFromEnum(Tag.boolean) => LuaValue{ .bool = self.readByte() != 0 },
             @intFromEnum(Tag.integer) => LuaValue{ .int64 = self.readLuaInteger() },
             @intFromEnum(Tag.number) => LuaValue{ .float64 = self.readLuaNumber() },
-            @intFromEnum(Tag.short_str), @intFromEnum(Tag.long_str) => LuaValue{ .string = self.readString() },
+            @intFromEnum(Tag.short_str), @intFromEnum(Tag.long_str) => LuaValue{ .string = LuaString.create(self.allocator, self.readString()) },
             else => @panic("corrupted!"),
         };
     }
