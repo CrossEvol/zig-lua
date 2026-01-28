@@ -7,4 +7,5 @@ pub const Api = struct {
     pub const LUA_MINSTACK = consts.LUA_MINSTACK;
     pub const LUA_REGISTRYINDEX = consts.LUA_REGISTRYINDEX;
     pub const LUA_RIDX_GLOBALS = consts.LUA_RIDX_GLOBALS;
+    pub const luaUpvalueIndex = consts.luaUpvalueIndex;
 };

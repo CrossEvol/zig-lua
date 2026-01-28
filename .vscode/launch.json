@@ -5,6 +5,15 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Debug Ch10",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceRoot}/zig-out/bin/ch10.exe",
+            "args": ["${workspaceRoot}/test_data/test10.luac"],
+            "cwd": "${workspaceRoot}",
+            "preLaunchTask": "build-ch10-debug"
+        },
+        {
             "name": "Debug Ch04",
             "type": "lldb",
             "request": "launch",

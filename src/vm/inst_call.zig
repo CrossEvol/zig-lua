@@ -63,6 +63,9 @@ pub fn _return(i: Instruction, vm: *LuaVM) void {
     _ = c;
     a += 1;
 
+    // Close upvalues before returning
+    vm.closeUpvalues(1);
+
     if (b == 1) {
         // no return values
         return;

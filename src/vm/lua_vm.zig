@@ -271,6 +271,12 @@ pub const LuaVM = struct {
         self.ls.pushZigFunction(f);
     }
 
+    // [-n, +1, m]
+    // http://www.lua.org/manual/5.3/manual.html#lua_pushcclosure
+    pub fn pushZigClosure(self: *LuaVM, f: ZigFunction, n: i32) void {
+        self.ls.pushZigClosure(f, n);
+    }
+
     // [-0, +1, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_pushglobaltable
     pub fn pushGlobalTable(self: *LuaVM) void {
@@ -338,6 +344,10 @@ pub const LuaVM = struct {
 
     pub fn loadProto(self: *LuaVM, idx: i32) void {
         self.ls.loadProto(idx);
+    }
+
+    pub fn closeUpvalues(self: *LuaVM, a: i32) void {
+        self.ls.closeUpvalues(a);
     }
 
     /// **************************  api_get  **************************

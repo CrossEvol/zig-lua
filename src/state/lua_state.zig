@@ -28,6 +28,7 @@ const LuaString = @import("lua_string.zig").LuaString;
 const LuaTable = @import("lua_table.zig").LuaTable;
 const LuaValue = @import("lua_value.zig").LuaValue;
 const typeof = @import("lua_value.zig").typeOf;
+const Upvalue = @import("closure.zig").UpValue;
 const ZigFunction = @import("closure.zig").ZigFunction;
 
 const string = []const u8;
@@ -387,9 +388,22 @@ pub const LuaState = struct {
     // [-0, +1, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_pushcfunction
     pub fn pushZigFunction(self: *LuaState, f: ZigFunction) void {
-        const zig_closure = self.allocator.create(Closure) catch @panic("allocation failed");
-        zig_closure.* = Closure.initZigClosure(f);
-        self.stack.?.push(.{ .closure = zig_closure });
+        const closure = self.allocator.create(Closure) catch @panic("allocation failed");
+        closure.* = Closure.initZigClosure(self.allocator, f, 0);
+        self.stack.?.push(.{ .closure = closure });
+    }
+
+    // [-n, +1, m]
+    // http://www.lua.org/manual/5.3/manual.html#lua_pushcclosure
+    pub fn pushZigClosure(self: *LuaState, f: ZigFunction, n: i32) void {
+        const closure = self.allocator.create(Closure) catch @panic("allocation failed");
+        closure.* = Closure.initZigClosure(self.allocator, f, n);
+        var i = n;
+        while (i > 0) : (i -= 1) {
+            const val = self.stack.?.pop();
+            closure.upvals[@as(usize, @intCast(i - 1))] = Upvalue.createClosed(self.allocator, val);
+        }
+        self.stack.?.push(.{ .closure = closure });
     }
 
     // [-0, +1, –]
@@ -534,10 +548,60 @@ pub const LuaState = struct {
     }
 
     pub fn loadProto(self: *LuaState, idx: i32) void {
-        const proto = self.stack.?.closure.?.proto.?.protos[@as(usize, @intCast(idx))];
-        const closure = self.allocator.create(Closure) catch @panic("allocation failed");
-        closure.* = Closure.init(proto);
-        self.stack.?.push(.{ .closure = closure });
+        if (self.stack) |stack| {
+            const proto = stack.closure.?.proto.?.protos[@as(usize, @intCast(idx))];
+            const closure = self.allocator.create(Closure) catch @panic("allocation failed");
+            closure.* = Closure.initLuaClosure(self.allocator, proto);
+            stack.push(.{ .closure = closure });
+
+            for (0.., proto.upvalues) |i, uv_info| {
+                const uv_idx: usize = @intCast(uv_info.idx);
+                if (uv_info.in_stack == 1) {
+                    if (stack.openuvs == null) {
+                        stack.openuvs = std.AutoHashMap(i32, *Upvalue).init(self.allocator);
+                    }
+
+                    const openuv = stack.openuvs.?.get(@as(i32, @intCast(uv_idx)));
+                    if (openuv) |uv| {
+                        closure.upvals[i] = uv;
+                        uv.retain();
+                    } else {
+                        const upvalue = Upvalue.create(self.allocator, &stack.slots.items[uv_idx]);
+                        closure.upvals[i] = upvalue;
+                        stack.openuvs.?.put(@as(i32, @intCast(uv_idx)), upvalue) catch @panic("allocation failed");
+                        upvalue.retain();
+                    }
+                } else {
+                    closure.upvals[i] = stack.closure.?.upvals[uv_idx];
+                    if (closure.upvals[i]) |uv| {
+                        uv.retain();
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn closeUpvalues(self: *LuaState, a: i32) void {
+        if (self.stack) |stack| {
+            var keys_to_remove = std.ArrayList(i32).initCapacity(self.allocator, 8) catch @panic("allocation failed");
+            defer keys_to_remove.deinit(self.allocator);
+
+            var it = stack.openuvs.?.iterator();
+            while (it.next()) |entry| {
+                const i = entry.key_ptr.*;
+                if (i >= a - 1) {
+                    const openuv = entry.value_ptr.*;
+                    openuv.*.close(self.allocator);
+                    keys_to_remove.append(self.allocator, i) catch @panic("allocation failed");
+                }
+            }
+
+            for (keys_to_remove.items) |key| {
+                if (stack.openuvs.?.fetchRemove(key)) |entry| {
+                    entry.value.release(self.allocator);
+                }
+            }
+        }
     }
 
     /// **************************  api_get  **************************
@@ -667,7 +731,7 @@ pub const LuaState = struct {
     // api_closure
     pub fn setClosure(self: *LuaState, proto: *binchunk.Prototype) void {
         const closure = self.allocator.create(Closure) catch @panic("allocation failed");
-        closure.* = Closure.init(proto);
+        closure.* = Closure.initLuaClosure(self.allocator, proto);
         self.stack.?.closure = closure;
     }
 
@@ -702,8 +766,12 @@ pub const LuaState = struct {
 
         const proto = binchunk.undump(chunk);
         const c = self.allocator.create(Closure) catch @panic("allocation failed");
-        c.* = Closure.init(proto);
+        c.* = Closure.initLuaClosure(self.allocator, proto);
         self.stack.?.push(.{ .closure = c });
+        if (proto.upvalues.len > 0) {
+            const env = self.registry.get(.{ .int64 = LUA_RIDX_GLOBALS });
+            c.upvals[0] = Upvalue.createClosed(self.allocator, env);
+        }
 
         return 0;
     }

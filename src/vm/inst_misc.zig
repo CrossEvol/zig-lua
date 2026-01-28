@@ -17,6 +17,7 @@ pub fn jmp(i: Instruction, vm: *LuaVM) void {
 
     vm.addPC(sBx);
     if (a != 0) {
-        @panic("todo: jmp!");
+        // Close upvalues after jmp
+        vm.closeUpvalues(a);
     }
 }
