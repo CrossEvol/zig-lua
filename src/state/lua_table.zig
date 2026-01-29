@@ -2,11 +2,15 @@ const std = @import("std");
 const math = std.math;
 
 const number = @import("../number/root.zig").number;
+const LuaString = @import("lua_string.zig").LuaString;
 const LuaValue = @import("lua_value.zig").LuaValue;
+
+const string = []const u8;
 
 pub const LuaTable = struct {
     allocator: std.mem.Allocator,
     ref_count: u32,
+    meta_table: ?*LuaTable,
     arr: std.ArrayList(LuaValue),
     map: std.HashMap(
         LuaValue,
@@ -34,6 +38,7 @@ pub const LuaTable = struct {
         return .{
             .allocator = allocator,
             .ref_count = 1,
+            .meta_table = null,
             .arr = arr,
             .map = map,
         };
@@ -148,8 +153,18 @@ pub const LuaTable = struct {
         }
     }
 
-    pub fn len(self: *LuaTable) i32 {
-        return @intCast(self.arr.items.len);
+    pub fn hasMetaField(self: *LuaTable, fieldName: string) bool {
+        if (self.meta_table) |mt| {
+            const lua_string = LuaString.create(self.allocator, fieldName);
+            defer lua_string.release(self.allocator);
+            return std.meta.activeTag(mt.get(.{ .string = lua_string })) != .nil;
+        } else {
+            return false;
+        }
+    }
+
+    pub fn len(self: *LuaTable) usize {
+        return self.arr.items.len;
     }
 
     fn _floatToInteger(key: LuaValue) LuaValue {

@@ -41,6 +41,12 @@ pub const LuaVM = struct {
 
     /// **************************  api_access  **************************
 
+    //     // [-0, +0, –]
+    // http://www.lua.org/manual/5.3/manual.html#lua_rawlen
+    pub fn rawLen(self: *LuaVM, idx: i32) usize {
+        return self.ls.rawLen(idx);
+    }
+
     // [-0, +0, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_typename
     pub fn typeName(self: *LuaVM, tp: LuaType) []const u8 {
@@ -295,6 +301,12 @@ pub const LuaVM = struct {
 
     // [-0, +0, e]
     // http://www.lua.org/manual/5.3/manual.html#lua_compare
+    pub fn rawEqual(self: *LuaVM, idx1: i32, idx2: i32) bool {
+        return self.ls.rawEqual(idx1, idx2);
+    }
+
+    // [-0, +0, e]
+    // http://www.lua.org/manual/5.3/manual.html#lua_compare
     pub fn compare(self: *LuaVM, idx1: i32, idx2: i32, op: CompareOp) bool {
         return self.ls.compare(idx1, idx2, op);
     }
@@ -367,13 +379,19 @@ pub const LuaVM = struct {
     // [-1, +1, e]
     // http://www.lua.org/manual/5.3/manual.html#lua_gettable
     pub fn getTable(self: *LuaVM, idx: i32) LuaType {
-        return self.ls.getTable(idx);
+        return self.ls.GetTable(idx);
     }
 
     // [-0, +1, e]
     // http://www.lua.org/manual/5.3/manual.html#lua_getglobal
     pub fn getGlobal(self: *LuaVM, name: string) LuaType {
         return self.ls.getGlobal(name);
+    }
+
+    // [-0, +(0|1), –]
+    // http://www.lua.org/manual/5.3/manual.html#lua_getmetatable
+    pub fn GetMetatable(self: *LuaVM, idx: i32) bool {
+        return self.ls.GetMetatable(idx);
     }
 
     // [-0, +1, e]
@@ -388,12 +406,24 @@ pub const LuaVM = struct {
         return self.ls.getI(idx, i);
     }
 
+    // [-1, +1, –]
+    // http://www.lua.org/manual/5.3/manual.html#lua_rawget
+    pub fn rawGet(self: *LuaVM, idx: i32) LuaType {
+        return self.ls.rawGet(idx);
+    }
+
+    // [-0, +1, –]
+    // http://www.lua.org/manual/5.3/manual.html#lua_rawgeti
+    pub fn rawGetI(self: *LuaVM, idx: i32, i: i64) LuaType {
+        return self.ls.rawGetI(idx, i);
+    }
+
     /// **************************  api_set  **************************
 
     // [-2, +0, e]
     // http://www.lua.org/manual/5.3/manual.html#lua_settable
     pub fn setTable(self: *LuaVM, idx: i32) void {
-        self.ls.setTable(idx);
+        self.ls.SetTable(idx);
     }
 
     // [-1, +0, e]
@@ -408,6 +438,18 @@ pub const LuaVM = struct {
         self.ls.setI(idx, i);
     }
 
+    // [-2, +0, m]
+    // http://www.lua.org/manual/5.3/manual.html#lua_rawset
+    pub fn rawSet(self: *LuaVM, idx: i32) void {
+        self.ls.rawSet(idx);
+    }
+
+    // [-1, +0, m]
+    // http://www.lua.org/manual/5.3/manual.html#lua_rawseti
+    pub fn rawSetI(self: *LuaVM, idx: i32, i: i64) void {
+        self.ls.rawSetI(idx, i);
+    }
+
     // [-1, +0, e]
     // http://www.lua.org/manual/5.3/manual.html#lua_setglobal
     pub fn setGlobal(self: *LuaVM, name: string) void {
@@ -418,6 +460,12 @@ pub const LuaVM = struct {
     // http://www.lua.org/manual/5.3/manual.html#lua_register
     pub fn register(self: *LuaVM, name: string, f: ZigFunction) void {
         self.ls.register(name, f);
+    }
+
+    // [-1, +0, –]
+    // http://www.lua.org/manual/5.3/manual.html#lua_setmetatable
+    pub fn SetMetatable(self: *LuaVM, idx: i32) void {
+        self.ls.SetMetatable(idx);
     }
 
     /// **************************  api_closure  **************************

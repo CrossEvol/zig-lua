@@ -9,10 +9,13 @@ const convertToInteger = @import("lua_value.zig").convertToInteger;
 pub const LuaTable = @import("lua_table.zig").LuaTable;
 pub const LuaValue = @import("lua_value.zig").LuaValue;
 
+const string = []const u8;
+
 const IntegerFunc = *const fn (a: i64, b: i64) i64;
 const FloatFunc = *const fn (a: f64, b: f64) f64;
 
 const Operator = struct {
+    metamethod: string,
     int_func: ?IntegerFunc,
     float_func: ?FloatFunc,
 };
@@ -78,25 +81,29 @@ fn bnot(a: i64, _: i64) i64 {
     return ~a;
 }
 
-fn operator(i: ?IntegerFunc, f: ?FloatFunc) Operator {
-    return .{ .int_func = i, .float_func = f };
+fn operator(metamethod: string, i: ?IntegerFunc, f: ?FloatFunc) Operator {
+    return .{
+        .metamethod = metamethod,
+        .int_func = i,
+        .float_func = f,
+    };
 }
 
 pub const operators = [_]Operator{
-    operator(iadd, fadd),
-    operator(isub, fsub),
-    operator(imul, fmul),
-    operator(imod, fmod),
-    operator(null, fpow),
-    operator(null, fdiv),
-    operator(iidiv, fidiv),
-    operator(band, null),
-    operator(bor, null),
-    operator(bxor, null),
-    operator(shl, null),
-    operator(shr, null),
-    operator(iunm, funm),
-    operator(bnot, null),
+    operator("__add", iadd, fadd),
+    operator("__sub", isub, fsub),
+    operator("__mul", imul, fmul),
+    operator("__mod", imod, fmod),
+    operator("__pow", null, fpow),
+    operator("__div", null, fdiv),
+    operator("__idiv", iidiv, fidiv),
+    operator("__band", band, null),
+    operator("__bor", bor, null),
+    operator("__bxor", bxor, null),
+    operator("__shl", shl, null),
+    operator("__shr", shr, null),
+    operator("__unm", iunm, funm),
+    operator("__bnot", bnot, null),
 };
 
 pub fn _arith(a: LuaValue, b: LuaValue, op: Operator) LuaValue {

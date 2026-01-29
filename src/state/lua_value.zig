@@ -3,6 +3,7 @@ const std = @import("std");
 const LuaType = @import("../api/root.zig").Api.LuaType;
 const number = @import("../number/root.zig").number;
 const Closure = @import("closure.zig").Closure;
+const LuaState = @import("lua_state.zig").LuaState;
 const LuaString = @import("lua_string.zig").LuaString;
 const LuaTable = @import("lua_table.zig").LuaTable;
 
@@ -19,6 +20,8 @@ pub const LuaValue = union(enum) {
     lua_state: *struct {},
 
     pub const LUA_NIL = LuaValue{ .nil = {} };
+
+    pub const LUA_NIL_REF = &LUA_NIL;
 
     pub fn deinit(self: *LuaValue, allocator: std.mem.Allocator) void {
         switch (self.*) {
@@ -138,4 +141,78 @@ fn _stringToInteger(s: string) struct { i64, bool } {
         return number.FloatToInteger(f);
     }
     return .{ 0, false };
+}
+
+pub fn getMetatable(allocator: std.mem.Allocator, val: LuaValue, ls: *LuaState) ?*LuaTable {
+    return switch (val) {
+        .lua_table => |t| t.meta_table,
+        else => {
+            const mt_key = std.fmt.allocPrint(allocator, "_MT{d}", .{@intFromEnum(typeOf(val))}) catch @panic("allocation failed");
+            defer allocator.free(mt_key);
+
+            const key = LuaString.create(allocator, mt_key);
+            defer key.release(allocator);
+
+            return switch ((ls.registry.get(.{ .string = key }))) {
+                .lua_table => |mt| mt,
+                else => null,
+            };
+        },
+    };
+}
+
+pub fn setMetatable(allocator: std.mem.Allocator, val: LuaValue, mt: ?*LuaTable, ls: *LuaState) void {
+    switch (val) {
+        .lua_table => |t| {
+            if (t.meta_table) |old_mt| {
+                old_mt.release(allocator);
+            }
+            t.meta_table = mt;
+        },
+        else => {
+            const mt_key = std.fmt.allocPrint(allocator, "_MT{d}", .{@intFromEnum(typeOf(val))}) catch @panic("allocation failed");
+            defer allocator.free(mt_key);
+
+            const key = LuaString.create(allocator, mt_key);
+            defer key.release(allocator);
+
+            if (mt) |t| {
+                ls.registry.put(.{ .string = key }, .{ .lua_table = t });
+            } else {
+                ls.registry.put(.{ .string = key }, LuaValue.LUA_NIL);
+            }
+        },
+    }
+}
+
+pub fn getMetafield(allocator: std.mem.Allocator, val: LuaValue, fieldName: string, ls: *LuaState) LuaValue {
+    if (getMetatable(allocator, val, ls)) |mt| {
+        const key = LuaString.create(allocator, fieldName);
+        defer key.release(allocator);
+        return mt.get(.{ .string = key });
+    }
+
+    return LuaValue.LUA_NIL;
+}
+
+pub fn callMetamethod(allocator: std.mem.Allocator, a: LuaValue, b: LuaValue, mmName: string, ls: *LuaState) struct { LuaValue, bool } {
+    var mm: LuaValue = undefined;
+    mm = getMetafield(allocator, a, mmName, ls);
+    if (std.meta.activeTag(mm) == .nil) {
+        mm = getMetafield(allocator, b, mmName, ls);
+        if (std.meta.activeTag(mm) == .nil) {
+            return .{ LuaValue.LUA_NIL, false };
+        }
+    }
+
+    if (ls.stack) |stack| {
+        stack.check(4);
+        stack.push(mm);
+        stack.push(a.clone(allocator));
+        stack.push(b.clone(allocator));
+        ls.call(2, 1);
+        return .{ stack.pop(), true };
+    }
+
+    @panic("callMetamethod failed");
 }

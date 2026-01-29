@@ -1,9 +1,12 @@
 const std = @import("std");
 
 const binchunk = @import("../binchunk/root.zig").binchunk;
+const callMetamethod = @import("lua_value.zig").callMetamethod;
+const convertToBoolean = @import("lua_value.zig").convertToBoolean;
+const LuaState = @import("lua_state.zig").LuaState;
 const LuaValue = @import("lua_value.zig").LuaValue;
 
-pub fn _eq(a: LuaValue, b: LuaValue) bool {
+pub fn _eq(allocator: std.mem.Allocator, a: LuaValue, b: LuaValue, ls: ?*LuaState) bool {
     return switch (a) {
         .nil => b == .nil,
         .bool => |x| switch (b) {
@@ -24,11 +27,23 @@ pub fn _eq(a: LuaValue, b: LuaValue) bool {
             .int64 => |y| x == @as(f64, @floatFromInt(y)),
             else => false,
         },
+        .lua_table => |x| switch (b) {
+            .lua_table => |y| {
+                if (x != y and ls != null) {
+                    const result, const ok = callMetamethod(allocator, a, b, "__eq", ls.?);
+                    if (ok) {
+                        return convertToBoolean(result);
+                    }
+                }
+                return std.meta.eql(a, b);
+            },
+            else => std.meta.eql(a, b),
+        },
         else => std.meta.eql(a, b),
     };
 }
 
-pub fn _lt(a: LuaValue, b: LuaValue) bool {
+pub fn _lt(allocator: std.mem.Allocator, a: LuaValue, b: LuaValue, ls: ?*LuaState) bool {
     return switch (a) {
         .string => |x| switch (b) {
             .string => |y| std.mem.lessThan(u8, x.data(), y.data()),
@@ -44,11 +59,18 @@ pub fn _lt(a: LuaValue, b: LuaValue) bool {
             .int64 => |y| x < @as(f64, @floatFromInt(y)),
             else => @panic("comparison error!"),
         },
-        else => @panic("comparison error!"),
+        else => {
+            const result, const ok = callMetamethod(allocator, a, b, "__lt", ls.?);
+            if (ok) {
+                return convertToBoolean(result);
+            } else {
+                @panic("comparison error!");
+            }
+        },
     };
 }
 
-pub fn _le(a: LuaValue, b: LuaValue) bool {
+pub fn _le(allocator: std.mem.Allocator, a: LuaValue, b: LuaValue, ls: ?*LuaState) bool {
     return switch (a) {
         .string => |x| switch (b) {
             .string => |y| std.mem.order(u8, x.data(), y.data()) != .gt,
@@ -64,6 +86,16 @@ pub fn _le(a: LuaValue, b: LuaValue) bool {
             .int64 => |y| x <= @as(f64, @floatFromInt(y)),
             else => @panic("comparison error!"),
         },
-        else => @panic("comparison error!"),
+        else => {
+            var result, var ok = callMetamethod(allocator, a, b, "__le", ls.?);
+            if (ok) {
+                return convertToBoolean(result);
+            }
+            result, ok = callMetamethod(allocator, b, a, "__lt", ls.?);
+            if (ok) {
+                return convertToBoolean(result);
+            }
+            @panic("comparison error!");
+        },
     };
 }

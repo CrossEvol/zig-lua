@@ -5,13 +5,37 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Debug Ch11",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceRoot}/zig-out/bin/ch11.exe",
+            "args": [
+                "${workspaceRoot}/test_data/vector.luac"
+            ],
+            "cwd": "${workspaceRoot}",
+            "preLaunchTask": "build-ch11-debug"
+        },
+        {
             "name": "Debug Ch10",
-            "type": "lldb",
+            "type": "cppvsdbg",
             "request": "launch",
             "program": "${workspaceRoot}/zig-out/bin/ch10.exe",
-            "args": ["${workspaceRoot}/test_data/test10.luac"],
+            "args": [
+                "${workspaceRoot}/test_data/test10.luac"
+            ],
             "cwd": "${workspaceRoot}",
             "preLaunchTask": "build-ch10-debug"
+        },
+        {
+            "name": "Debug Ch07",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceRoot}/zig-out/bin/ch07.exe",
+            "args": [
+                "${workspaceRoot}/test_data/test.out"
+            ],
+            "cwd": "${workspaceRoot}",
+            "preLaunchTask": "build-ch07-debug"
         },
         {
             "name": "Debug Ch04",
