@@ -122,5 +122,5 @@ pub fn _arith(a: LuaValue, b: LuaValue, op: Operator) LuaValue {
             }
         }
     }
-    return .{ .nil = {} };
+    return LuaValue.LUA_NIL;
 }

@@ -29,7 +29,7 @@ pub const LuaStack = struct {
     pub fn init(allocator: std.mem.Allocator, size: usize, state: ?*LuaState) !LuaStack {
         var slots = try std.ArrayList(LuaValue).initCapacity(allocator, size);
         try slots.ensureTotalCapacity(allocator, size);
-        try slots.appendNTimes(allocator, .{ .nil = {} }, size);
+        try slots.appendNTimes(allocator, LuaValue.LUA_NIL, size);
 
         return .{
             .slots = slots,
@@ -70,7 +70,7 @@ pub const LuaStack = struct {
         const free = self.slots.items.len - self.top;
         if (@as(usize, @intCast(n)) < free) return;
         for (free..@as(usize, @intCast(n))) |_| {
-            self.slots.append(self.allocator, .{ .nil = {} }) catch @panic("stack overflow");
+            self.slots.append(self.allocator, LuaValue.LUA_NIL) catch @panic("stack overflow");
         }
     }
 
@@ -92,7 +92,7 @@ pub const LuaStack = struct {
         }
         self.top -= 1;
         const val = self.slots.items[self.top];
-        self.slots.items[self.top] = .{ .nil = {} };
+        self.slots.items[self.top] = LuaValue.LUA_NIL;
         return val;
     }
 
@@ -126,7 +126,7 @@ pub const LuaStack = struct {
             const uv_idx: usize = @intCast(LUA_REGISTRYINDEX - idx - 1);
             const c = self.closure;
             if (c == null or uv_idx >= c.?.upvals.len) {
-                return .{ .nil = {} };
+                return LuaValue.LUA_NIL;
             } else {
                 return c.?.upvals[uv_idx].?.val.*;
             }
@@ -141,7 +141,7 @@ pub const LuaStack = struct {
             // Return the value without cloning - caller is responsible for cloning if needed
             return self.slots.items[absIdx - 1];
         }
-        return .{ .nil = {} };
+        return LuaValue.LUA_NIL;
     }
 
     /// Set a value at the specified stack index.
@@ -196,7 +196,7 @@ pub const LuaStack = struct {
             if (i < n_vals) {
                 self.push(vals[i]);
             } else {
-                self.push(.{ .nil = {} });
+                self.push(LuaValue.LUA_NIL);
             }
         }
     }

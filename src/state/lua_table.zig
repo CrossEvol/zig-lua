@@ -81,7 +81,7 @@ pub const LuaTable = struct {
         if (self.map.get(k1)) |v| {
             return v.clone(self.allocator);
         } else {
-            return .{ .nil = {} };
+            return LuaValue.LUA_NIL;
         }
     }
 

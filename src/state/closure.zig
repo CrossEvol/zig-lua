@@ -8,7 +8,7 @@ pub const ZigFunction = *const fn (*LuaState) i32;
 
 pub const UpValue = struct {
     val: *LuaValue,
-    closed_val: LuaValue = .{ .nil = {} },
+    closed_val: LuaValue = LuaValue.LUA_NIL,
     ref_count: u32,
 
     pub fn create(allocator: std.mem.Allocator, val: *LuaValue) *UpValue {
@@ -16,7 +16,7 @@ pub const UpValue = struct {
         upval.* = .{
             .val = val,
             .ref_count = 1,
-            .closed_val = .{ .nil = {} },
+            .closed_val = LuaValue.LUA_NIL,
         };
         return upval;
     }

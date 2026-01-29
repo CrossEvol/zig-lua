@@ -18,6 +18,8 @@ pub const LuaValue = union(enum) {
     closure: *Closure,
     lua_state: *struct {},
 
+    pub const LUA_NIL = LuaValue{ .nil = {} };
+
     pub fn deinit(self: *LuaValue, allocator: std.mem.Allocator) void {
         switch (self.*) {
             .string => |s| s.release(allocator),

@@ -347,7 +347,7 @@ pub const LuaState = struct {
         } else if (n < 0) {
             var i: i32 = 0;
             while (i > n) : (i -= 1) {
-                self.stack.?.push(.{ .nil = {} });
+                self.stack.?.push(LuaValue.LUA_NIL);
             }
         }
     }
@@ -357,7 +357,7 @@ pub const LuaState = struct {
     // [-0, +1, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_pushnil
     pub fn pushNil(self: *LuaState) void {
-        self.stack.?.push(.{ .nil = {} });
+        self.stack.?.push(LuaValue.LUA_NIL);
     }
 
     // [-0, +1, –]
@@ -542,7 +542,7 @@ pub const LuaState = struct {
         } else {
             // No varargs available, push nils
             for (0..@as(usize, @intCast(n))) |_| {
-                self.stack.?.push(.{ .nil = {} });
+                self.stack.?.push(LuaValue.LUA_NIL);
             }
         }
     }
