@@ -52,7 +52,6 @@ pub fn luaMain(proto: *binchunk.Prototype, allocator: std.mem.Allocator) !void {
     defer ls.deinit();
 
     ls.setClosure(proto);
-    defer ls.unsetClosure();
     ls.setTop(n_registers);
     outer: while (true) {
         const pc = ls.pc();

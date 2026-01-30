@@ -2,29 +2,27 @@ const std = @import("std");
 
 pub const LuaString = struct {
     bytes: []const u8,
-    ref_count: u32,
     hash64: u64, // cached hash for faster table lookups
 
     pub fn create(allocator: std.mem.Allocator, s: []const u8) *LuaString {
         const self = allocator.create(LuaString) catch @panic("allocation failed");
         self.* = .{
             .bytes = allocator.dupe(u8, s) catch @panic("allocation failed"),
-            .ref_count = 1,
             .hash64 = computeHash(s),
         };
         return self;
     }
 
-    pub fn retain(self: *LuaString) void {
-        self.ref_count += 1;
+    pub fn init(allocator: std.mem.Allocator, s: []const u8) LuaString {
+        return .{
+            .bytes = allocator.dupe(u8, s) catch @panic("allocation failed"),
+            .hash64 = computeHash(s),
+        };
     }
 
-    pub fn release(self: *LuaString, allocator: std.mem.Allocator) void {
-        self.ref_count -= 1;
-        if (self.ref_count == 0) {
-            allocator.free(self.bytes);
-            allocator.destroy(self);
-        }
+    pub fn deinit(self: *LuaString, allocator: std.mem.Allocator) void {
+        allocator.free(self.bytes);
+        allocator.destroy(self);
     }
 
     pub fn data(self: *LuaString) []const u8 {

@@ -5,6 +5,7 @@ const api = @import("api/root.zig").Api;
 const ArithOp = api.ArithOp;
 const CompareOp = api.CompareOp;
 const binchunk = @import("binchunk/root.zig").binchunk;
+const GC = @import("state/gc.zig").GC;
 const LuaValue = @import("state/root.zig").state.LuaValue;
 const LuaState = @import("state/root.zig").state.LuaState;
 const vm = @import("vm/root.zig").vm;
@@ -18,7 +19,13 @@ pub fn main() !void {
     defer _ = debug_allocator.deinit(); // This checks for leaks.
     const gpa = debug_allocator.allocator();
 
-    var lua_state = try LuaState.init(gpa);
+    const gc = try gpa.create(GC);
+    gc.* = GC.init(gpa);
+    defer {
+        gc.deinit();
+        gpa.destroy(gc);
+    }
+    var lua_state = try LuaState.init(gpa, gc);
     defer lua_state.deinit();
 
     var ls = &lua_state;

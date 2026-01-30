@@ -13,10 +13,6 @@ pub fn _eq(allocator: std.mem.Allocator, a: LuaValue, b: LuaValue, ls: ?*LuaStat
             .bool => |y| x == y,
             else => false,
         },
-        .string => |x| switch (b) {
-            .string => |y| x.hash() == y.hash(),
-            else => false,
-        },
         .int64 => |x| switch (b) {
             .int64 => |y| x == y,
             .float64 => |y| @as(f64, @floatFromInt(x)) == y,
@@ -27,28 +23,33 @@ pub fn _eq(allocator: std.mem.Allocator, a: LuaValue, b: LuaValue, ls: ?*LuaStat
             .int64 => |y| x == @as(f64, @floatFromInt(y)),
             else => false,
         },
-        .lua_table => |x| switch (b) {
-            .lua_table => |y| {
-                if (x != y and ls != null) {
-                    const result, const ok = callMetamethod(allocator, a, b, "__eq", ls.?);
+        .obj => |obj| switch (obj.*.as) {
+            .string => |x| switch (b) {
+                .obj => |b_obj| switch (b_obj.*.as) {
+                    .string => |y| x.hash() == y.hash(),
+                    else => false,
+                },
+                else => false,
+            },
+            .lua_table => |x| {
+                var ok = b.isTable();
+                const y = b.asTable();
+                if (ok and x != y and ls != null) {
+                    const result, ok = callMetamethod(allocator, a, b, "__eq", ls.?);
                     if (ok) {
                         return convertToBoolean(result);
                     }
                 }
+
                 return std.meta.eql(a, b);
             },
             else => std.meta.eql(a, b),
         },
-        else => std.meta.eql(a, b),
     };
 }
 
 pub fn _lt(allocator: std.mem.Allocator, a: LuaValue, b: LuaValue, ls: ?*LuaState) bool {
     return switch (a) {
-        .string => |x| switch (b) {
-            .string => |y| std.mem.lessThan(u8, x.data(), y.data()),
-            else => @panic("comparison error!"),
-        },
         .int64 => |x| switch (b) {
             .int64 => |y| x < y,
             .float64 => |y| @as(f64, @floatFromInt(x)) < y,
@@ -58,6 +59,23 @@ pub fn _lt(allocator: std.mem.Allocator, a: LuaValue, b: LuaValue, ls: ?*LuaStat
             .float64 => |y| x < y,
             .int64 => |y| x < @as(f64, @floatFromInt(y)),
             else => @panic("comparison error!"),
+        },
+        .obj => |obj| switch (obj.*.as) {
+            .string => |x| switch (b) {
+                .obj => |b_obj| switch (b_obj.*.as) {
+                    .string => |y| std.mem.lessThan(u8, x.data(), y.data()),
+                    else => @panic("comparison error!"),
+                },
+                else => @panic("comparison error!"),
+            },
+            else => {
+                const result, const ok = callMetamethod(allocator, a, b, "__lt", ls.?);
+                if (ok) {
+                    return convertToBoolean(result);
+                } else {
+                    @panic("comparison error!");
+                }
+            },
         },
         else => {
             const result, const ok = callMetamethod(allocator, a, b, "__lt", ls.?);
@@ -72,10 +90,6 @@ pub fn _lt(allocator: std.mem.Allocator, a: LuaValue, b: LuaValue, ls: ?*LuaStat
 
 pub fn _le(allocator: std.mem.Allocator, a: LuaValue, b: LuaValue, ls: ?*LuaState) bool {
     return switch (a) {
-        .string => |x| switch (b) {
-            .string => |y| std.mem.order(u8, x.data(), y.data()) != .gt,
-            else => @panic("comparison error!"),
-        },
         .int64 => |x| switch (b) {
             .int64 => |y| x <= y,
             .float64 => |y| @as(f64, @floatFromInt(x)) <= y,
@@ -86,16 +100,26 @@ pub fn _le(allocator: std.mem.Allocator, a: LuaValue, b: LuaValue, ls: ?*LuaStat
             .int64 => |y| x <= @as(f64, @floatFromInt(y)),
             else => @panic("comparison error!"),
         },
-        else => {
-            var result, var ok = callMetamethod(allocator, a, b, "__le", ls.?);
-            if (ok) {
-                return convertToBoolean(result);
-            }
-            result, ok = callMetamethod(allocator, b, a, "__lt", ls.?);
-            if (ok) {
-                return convertToBoolean(result);
-            }
-            @panic("comparison error!");
+        .obj => |obj| switch (obj.*.as) {
+            .string => |x| switch (b) {
+                .obj => |b_obj| switch (b_obj.*.as) {
+                    .string => |y| std.mem.order(u8, x.data(), y.data()) != .gt,
+                    else => @panic("comparison error!"),
+                },
+                else => @panic("comparison error!"),
+            },
+            else => {
+                var result, var ok = callMetamethod(allocator, a, b, "__le", ls.?);
+                if (ok) {
+                    return convertToBoolean(result);
+                }
+                result, ok = callMetamethod(allocator, b, a, "__lt", ls.?);
+                if (ok) {
+                    return convertToBoolean(result);
+                }
+                @panic("comparison error!");
+            },
         },
+        else => @panic("comparison error!"),
     };
 }

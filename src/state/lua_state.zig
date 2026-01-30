@@ -24,36 +24,40 @@ const Closure = @import("closure.zig").Closure;
 const convertToBoolean = @import("lua_value.zig").convertToBoolean;
 const convertToFloat = @import("lua_value.zig").convertToFloat;
 const convertToInteger = @import("lua_value.zig").convertToInteger;
+const GC = @import("gc.zig").GC;
 const getMetafield = @import("lua_value.zig").getMetafield;
 const getMetatable = @import("lua_value.zig").getMetatable;
 const LuaStack = @import("lua_stack.zig").LuaStack;
 const LuaString = @import("lua_string.zig").LuaString;
 const LuaTable = @import("lua_table.zig").LuaTable;
 const LuaValue = @import("lua_value.zig").LuaValue;
+const Object = @import("lua_object.zig").Object;
 const setMetatable = @import("lua_value.zig").setMetatable;
 const typeof = @import("lua_value.zig").typeOf;
-const Upvalue = @import("closure.zig").UpValue;
+const UpValue = @import("closure.zig").UpValue;
 const ZigFunction = @import("closure.zig").ZigFunction;
 
 const string = []const u8;
 
 pub const LuaState = struct {
-    registry: *LuaTable,
-    stack: ?*LuaStack,
-    allocator: std.mem.Allocator,
+    registry: *LuaTable, // borrow from gc
+    stack: ?*LuaStack, // own by self? TODO:
 
-    pub fn init(allocator: std.mem.Allocator) !LuaState {
-        const registry = allocator.create(LuaTable) catch @panic("allocation failed");
-        registry.* = LuaTable.init(allocator, 0, 0);
-        const env = allocator.create(LuaTable) catch @panic("allocation failed");
-        env.* = LuaTable.init(allocator, 0, 0);
-        defer env.release(allocator); // it will be cloned once when put into table
-        registry.put(.{ .int64 = LUA_RIDX_GLOBALS }, .{ .lua_table = env });
+    // memory management
+    allocator: std.mem.Allocator,
+    gc: *GC,
+
+    pub fn init(allocator: std.mem.Allocator, gc: *GC) !LuaState {
+        var lv_table = gc.createLVTable(0, 0);
+        const registry = lv_table.asTable();
+        const env = gc.createLVTable(0, 0);
+        registry.put(.{ .int64 = LUA_RIDX_GLOBALS }, env);
 
         var ls: LuaState = .{
             .registry = registry,
             .stack = null,
             .allocator = allocator,
+            .gc = gc,
         };
 
         const stack = allocator.create(LuaStack) catch @panic("allocation failed");
@@ -64,11 +68,25 @@ pub const LuaState = struct {
     }
 
     pub fn deinit(self: *LuaState) void {
-        self.registry.release(self.allocator);
-
         if (self.stack) |s| {
             s.deinit();
             self.allocator.destroy(s);
+        }
+    }
+
+    pub fn pushLuaStack(self: *LuaState, stack: *LuaStack) void {
+        stack.prev = self.stack;
+        self.stack = stack;
+    }
+
+    pub fn popLuaStack(self: *LuaState) void {
+        const lua_stack = self.stack;
+
+        if (lua_stack) |stack| {
+            self.stack = stack.prev.?;
+            stack.prev = null;
+            stack.deinit(); // TODO: LuaStack不由 GC 管理
+            self.allocator.destroy(stack);
         }
     }
 
@@ -80,8 +98,11 @@ pub const LuaState = struct {
         if (self.stack) |stack| {
             const val = stack.get(idx);
             return switch (val) {
-                .string => |s| s.len(),
-                .lua_table => |t| t.len(),
+                .obj => |obj| switch (obj.*.as) {
+                    .string => |s| s.len(),
+                    .lua_table => |t| t.len(),
+                    else => 0,
+                },
                 else => 0,
             };
         }
@@ -188,7 +209,10 @@ pub const LuaState = struct {
     pub fn isZigFunction(self: *LuaState, idx: i32) bool {
         const val = self.stack.?.get(idx);
         switch (val) {
-            .closure => |c| c.zig_func != null,
+            .obj => |obj| switch (obj.*.as) {
+                .closure => |c| c.zig_func != null,
+                else => false,
+            },
             else => false,
         }
     }
@@ -241,24 +265,30 @@ pub const LuaState = struct {
     pub fn toStringX(self: *LuaState, idx: i32) struct { *LuaString, bool } {
         const val = self.stack.?.get(idx);
         switch (val) {
-            .string => |x| return .{ x, true },
             .int64 => |x| {
                 const s = std.fmt.allocPrint(self.allocator, "{d}", .{x}) catch @panic("allocation failed");
                 defer self.allocator.free(s);
-                const lua_string = LuaString.create(self.allocator, s);
-                self.stack.?.set(idx, .{ .string = lua_string });
-                return .{ lua_string, true };
+                var lv_str = self.gc.createLVString(s);
+                self.stack.?.set(idx, lv_str);
+                return .{ lv_str.asStr(), true };
             },
             .float64 => |x| {
                 const s = std.fmt.allocPrint(self.allocator, "{d}", .{x}) catch @panic("allocation failed");
                 defer self.allocator.free(s);
-                const lua_string = LuaString.create(self.allocator, s);
-                self.stack.?.set(idx, .{ .string = lua_string });
-                return .{ lua_string, true };
+                var lv_str = self.gc.createLVString(s);
+                self.stack.?.set(idx, lv_str);
+                return .{ lv_str.asStr(), true };
+            },
+            .obj => |obj| switch (obj.*.as) {
+                .string => |s| return .{ s, true },
+                else => {
+                    var lv_str = self.gc.createLVString("");
+                    return .{ lv_str.asStr(), false };
+                },
             },
             else => {
-                const lua_string = LuaString.create(self.allocator, "");
-                return .{ lua_string, false };
+                var lv_str = self.gc.createLVString("");
+                return .{ lv_str.asStr(), false };
             },
         }
     }
@@ -268,7 +298,10 @@ pub const LuaState = struct {
     pub fn toZigFunction(self: *LuaState, idx: i32) ?ZigFunction {
         const val = self.stack.?.get(idx);
         switch (val) {
-            .closure => |c| c.zig_func,
+            .obj => |obj| switch (obj.*.as) {
+                .closure => |c| c.zig_func,
+                else => null,
+            },
             else => null,
         }
     }
@@ -291,15 +324,14 @@ pub const LuaState = struct {
     // http://www.lua.org/manual/5.3/manual.html#lua_checkstack
     pub fn checkStack(self: *LuaState, n: i32) bool {
         self.stack.?.check(n);
-        return true;
+        return true; // never fails
     }
 
     // [-n, +0, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_pop
     pub fn pop(self: *LuaState, n: i32) void {
         for (0..@as(usize, @intCast(n))) |_| {
-            var val = self.stack.?.pop();
-            val.deinit(self.allocator);
+            _ = self.stack.?.pop();
         }
     }
 
@@ -307,14 +339,14 @@ pub const LuaState = struct {
     // http://www.lua.org/manual/5.3/manual.html#lua_copy
     pub fn copy(self: *LuaState, from_idx: i32, to_idx: i32) void {
         const val = self.stack.?.get(from_idx);
-        self.stack.?.set(to_idx, val.clone(self.allocator));
+        self.stack.?.set(to_idx, val);
     }
 
     // [-0, +1, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_pushvalue
     pub fn pushValue(self: *LuaState, idx: i32) void {
         const val = self.stack.?.get(idx);
-        self.stack.?.push(val.clone(self.allocator));
+        self.stack.?.push(val);
     }
 
     // [-1, +0, –]
@@ -360,8 +392,7 @@ pub const LuaState = struct {
         if (n > 0) {
             var i: i32 = 0;
             while (i < n) : (i += 1) {
-                var val = self.stack.?.pop();
-                val.deinit(self.allocator);
+                _ = self.stack.?.pop();
             }
         } else if (n < 0) {
             var i: i32 = 0;
@@ -400,29 +431,29 @@ pub const LuaState = struct {
     // [-0, +1, m]
     // http://www.lua.org/manual/5.3/manual.html#lua_pushstring
     pub fn pushString(self: *LuaState, s: string) void {
-        const lua_string = LuaString.create(self.allocator, s);
-        self.stack.?.push(.{ .string = lua_string });
+        const lv_str = self.gc.createLVString(s);
+        self.stack.?.push(lv_str);
     }
 
     // [-0, +1, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_pushcfunction
     pub fn pushZigFunction(self: *LuaState, f: ZigFunction) void {
-        const closure = self.allocator.create(Closure) catch @panic("allocation failed");
-        closure.* = Closure.initZigClosure(self.allocator, f, 0);
-        self.stack.?.push(.{ .closure = closure });
+        const lv_closure = self.gc.createLVZigClosure(f, 0);
+        self.stack.?.push(lv_closure);
     }
 
     // [-n, +1, m]
     // http://www.lua.org/manual/5.3/manual.html#lua_pushcclosure
     pub fn pushZigClosure(self: *LuaState, f: ZigFunction, n: i32) void {
-        const closure = self.allocator.create(Closure) catch @panic("allocation failed");
-        closure.* = Closure.initZigClosure(self.allocator, f, n);
+        const lv_closure = self.gc.createLVZigClosure(f, n);
+        const closure = lv_closure.asClosure();
         var i = n;
         while (i > 0) : (i -= 1) {
             const val = self.stack.?.pop();
-            closure.upvals[@as(usize, @intCast(i - 1))] = Upvalue.createClosed(self.allocator, val);
+            const val_ref = &val;
+            closure.upvals[@as(usize, @intCast(i - 1))] = self.gc.createClosedObjUpValue(val_ref);
         }
-        self.stack.?.push(.{ .closure = closure });
+        self.stack.?.push(lv_closure);
     }
 
     // [-0, +1, –]
@@ -437,10 +468,10 @@ pub const LuaState = struct {
     // [-(2|1), +1, e]
     // http://www.lua.org/manual/5.3/manual.html#l
     pub fn arith(self: *LuaState, op: ArithOp) void {
-        var b = self.stack.?.pop();
-        defer b.deinit(self.allocator);
-        var a = if (op != .lua_op_unm and op != .lua_op_bnot) self.stack.?.pop() else b;
-        defer if (op != .lua_op_unm and op != .lua_op_bnot) a.deinit(self.allocator);
+        const b = self.stack.?.pop();
+        // defer b.deinit(self.allocator);
+        const a = if (op != .lua_op_unm and op != .lua_op_bnot) self.stack.?.pop() else b;
+        // defer if (op != .lua_op_unm and op != .lua_op_bnot) a.deinit(self.allocator);
 
         const operator = operators[@intFromEnum(op)];
         var result = _arith(a, b, operator);
@@ -481,11 +512,11 @@ pub const LuaState = struct {
 
         const a = self.stack.?.get(idx1);
         const b = self.stack.?.get(idx2);
+
         return switch (op) {
             .lua_op_eq => _eq(self.allocator, a, b, self),
             .lua_op_lt => _lt(self.allocator, a, b, self),
             .lua_op_le => _le(self.allocator, a, b, self),
-            // else => @panic("invalid compare op!"),
         };
     }
 
@@ -496,15 +527,15 @@ pub const LuaState = struct {
     pub fn len(self: *LuaState, idx: i32) void {
         const val = self.stack.?.get(idx);
 
-        if (std.meta.activeTag(val) == .string) {
-            const s = val.string;
-            self.stack.?.push(.{ .int64 = @intCast(s.len()) });
+        if (val.isStr()) {
+            const val_str = val.asStr();
+            self.stack.?.push(.{ .int64 = @intCast(val_str.len()) });
         } else {
             const result, const ok = callMetamethod(self.allocator, val, val, "__len", self);
             if (ok) {
                 self.stack.?.push(result);
-            } else if (std.meta.activeTag(val) == .lua_table) {
-                const t = val.lua_table;
+            } else if (val.isTable()) {
+                const t = val.asTable();
                 self.stack.?.push(.{ .int64 = @intCast(t.len()) });
             } else {
                 @panic("length error!");
@@ -516,28 +547,24 @@ pub const LuaState = struct {
     // http://www.lua.org/manual/5.3/manual.html#lua_concat
     pub fn concat(self: *LuaState, n: i32) void {
         if (n == 0) {
-            const empty_string = LuaString.create(self.allocator, "");
-            self.stack.?.push(.{ .string = empty_string });
+            const lv_str = self.gc.createLVString("");
+            self.stack.?.push(lv_str);
         } else if (n >= 2) {
             for (1..@as(usize, @intCast(n))) |_| {
                 if (self.isString(-1) and self.isString(-2)) {
                     const s2 = self.toString(-1);
                     const s1 = self.toString(-2);
-                    var lv2 = self.stack.?.pop();
-                    var lv1 = self.stack.?.pop();
+                    _ = self.stack.?.pop();
+                    _ = self.stack.?.pop();
                     const s = std.mem.concat(self.allocator, u8, &.{ s1.bytes, s2.bytes }) catch @panic("allocation for concatenation failed");
                     defer self.allocator.free(s);
-                    lv2.deinit(self.allocator);
-                    lv1.deinit(self.allocator);
-                    const concat_string = LuaString.create(self.allocator, s);
-                    self.stack.?.push(.{ .string = concat_string });
+                    const lv_str = self.gc.createLVString(s);
+                    self.stack.?.push(lv_str);
                     continue;
                 }
 
-                var b = self.stack.?.pop();
-                defer b.deinit(self.allocator);
-                var a = self.stack.?.pop();
-                defer a.deinit(self.allocator);
+                const b = self.stack.?.pop();
+                const a = self.stack.?.pop();
                 const result, const ok = callMetamethod(self.allocator, a, b, "__concat", self);
                 if (ok) {
                     self.stack.?.push(result);
@@ -569,7 +596,7 @@ pub const LuaState = struct {
 
     pub fn getConst(self: *LuaState, idx: i32) void {
         const c = self.stack.?.closure.?.proto.?.constants[@as(usize, @intCast(idx))];
-        self.stack.?.push(c.clone(self.allocator));
+        self.stack.?.push(c);
     }
 
     pub fn getRK(self: *LuaState, rk: i32) void {
@@ -584,11 +611,11 @@ pub const LuaState = struct {
         return @intCast(self.stack.?.closure.?.proto.?.max_stack_size);
     }
 
-    pub fn loadVararg(self: *LuaState, n0: i32) void {
-        const n: i32 = if (n0 < 0)
+    pub fn loadVararg(self: *LuaState, n_args: i32) void {
+        const n: i32 = if (n_args < 0)
             if (self.stack.?.varargs) |varargs| @as(i32, @intCast(varargs.len)) else 0
         else
-            n0;
+            n_args;
 
         self.stack.?.check(n);
         if (self.stack.?.varargs) |varargs| {
@@ -604,32 +631,28 @@ pub const LuaState = struct {
     pub fn loadProto(self: *LuaState, idx: i32) void {
         if (self.stack) |stack| {
             const proto = stack.closure.?.proto.?.protos[@as(usize, @intCast(idx))];
-            const closure = self.allocator.create(Closure) catch @panic("allocation failed");
-            closure.* = Closure.initLuaClosure(self.allocator, proto);
-            stack.push(.{ .closure = closure });
+            const lv_closure = self.gc.createLVLuaClosure(proto);
+            const closure = lv_closure.asClosure();
+            stack.push(lv_closure);
 
             for (0.., proto.upvalues) |i, uv_info| {
                 const uv_idx: usize = @intCast(uv_info.idx);
                 if (uv_info.in_stack == 1) {
                     if (stack.openuvs == null) {
-                        stack.openuvs = std.AutoHashMap(i32, *Upvalue).init(self.allocator);
+                        stack.openuvs = std.AutoHashMap(i32, *UpValue).init(self.allocator);
                     }
 
                     const openuv = stack.openuvs.?.get(@as(i32, @intCast(uv_idx)));
                     if (openuv) |uv| {
                         closure.upvals[i] = uv;
-                        uv.retain();
                     } else {
-                        const upvalue = Upvalue.create(self.allocator, &stack.slots.items[uv_idx]);
+                        const lv_upval = self.gc.createOpenObjUpValue(&stack.slots.items[uv_idx]);
+                        const upvalue = lv_upval.asUpval();
                         closure.upvals[i] = upvalue;
                         stack.openuvs.?.put(@as(i32, @intCast(uv_idx)), upvalue) catch @panic("allocation failed");
-                        upvalue.retain();
                     }
                 } else {
                     closure.upvals[i] = stack.closure.?.upvals[uv_idx];
-                    if (closure.upvals[i]) |uv| {
-                        uv.retain();
-                    }
                 }
             }
         }
@@ -651,9 +674,7 @@ pub const LuaState = struct {
             }
 
             for (keys_to_remove.items) |key| {
-                if (stack.openuvs.?.fetchRemove(key)) |entry| {
-                    entry.value.release(self.allocator);
-                }
+                _ = stack.openuvs.?.remove(key);
             }
         }
     }
@@ -669,9 +690,8 @@ pub const LuaState = struct {
     // [-0, +1, m]
     // http://www.lua.org/manual/5.3/manual.html#lua_createtable
     pub fn createTable(self: *LuaState, n_arr: i32, n_rec: i32) void {
-        const t = self.allocator.create(LuaTable) catch @panic("allocation failed!");
-        t.* = LuaTable.init(self.allocator, n_arr, n_rec);
-        self.stack.?.push(.{ .lua_table = t });
+        const lv_table = self.gc.createLVTable(n_arr, n_rec);
+        self.stack.?.push(lv_table);
     }
 
     // [-1, +1, e]
@@ -679,44 +699,15 @@ pub const LuaState = struct {
     pub fn GetTable(self: *LuaState, idx: i32) LuaType {
         const t = self.stack.?.get(idx);
         const k = self.stack.?.pop();
-        // defer k.deinit(self.allocator);
         return self.getTable(t, k, false);
-    }
-
-    // [-0, +1, e]
-    // http://www.lua.org/manual/5.3/manual.html#lua_getglobal
-    pub fn getGlobal(self: *LuaState, name: string) LuaType {
-        const t = self.registry.get(.{ .int64 = LUA_RIDX_GLOBALS });
-        defer t.lua_table.release(self.allocator);
-        return self.getTable(
-            t,
-            .{ .string = LuaString.create(self.allocator, name) },
-            false,
-        );
-    }
-
-    // [-0, +(0|1), –]
-    // http://www.lua.org/manual/5.3/manual.html#lua_getmetatable
-    pub fn GetMetatable(self: *LuaState, idx: i32) bool {
-        const val = self.stack.?.get(idx);
-
-        if (getMetatable(self.allocator, val, self)) |mt| {
-            self.stack.?.push(.{ .lua_table = mt });
-            return true;
-        } else {
-            return false;
-        }
     }
 
     // [-0, +1, e]
     // http://www.lua.org/manual/5.3/manual.html#lua_getfield
     pub fn getField(self: *LuaState, idx: i32, k: string) LuaType {
         const t = self.stack.?.get(idx);
-        return self.getTable(
-            t,
-            .{ .string = LuaString.create(self.allocator, k) },
-            false,
-        );
+        const lv_str = self.gc.createLVString(k);
+        return self.getTable(t, lv_str, false);
     }
 
     // [-0, +1, e]
@@ -741,12 +732,35 @@ pub const LuaState = struct {
         return self.getTable(t, .{ .int64 = i }, true);
     }
 
+    // [-0, +1, e]
+    // http://www.lua.org/manual/5.3/manual.html#lua_getglobal
+    pub fn getGlobal(self: *LuaState, name: string) LuaType {
+        const t = self.registry.get(.{ .int64 = LUA_RIDX_GLOBALS });
+        const k = self.gc.createLVString(name);
+        return self.getTable(t, k, false);
+    }
+
+    // [-0, +(0|1), –]
+    // http://www.lua.org/manual/5.3/manual.html#lua_getmetatable
+    pub fn GetMetatable(self: *LuaState, idx: i32) bool {
+        const val = self.stack.?.get(idx);
+
+        if (getMetatable(self.allocator, val, self)) |mt| {
+            const table_obj = self.gc.allocateObject(.{ .lua_table = mt });
+            self.stack.?.push(table_obj);
+            return true;
+        } else {
+            return false;
+        }
+    }
+
     // push(t[k])
     fn getTable(self: *LuaState, t: LuaValue, k: LuaValue, raw: bool) LuaType {
-        if (std.meta.activeTag(t) == .lua_table) {
-            const tbl = t.lua_table;
+        const ok = t.isTable();
+        if (ok) {
+            const tbl = t.asTable();
             const v = tbl.get(k);
-            if (raw or std.meta.activeTag(v) != .nil or !tbl.hasMetaField("__index")) {
+            if (raw or !v.isNil() or !tbl.hasMetaField("__index", self)) {
                 self.stack.?.push(v);
                 return typeof(v);
             }
@@ -754,16 +768,19 @@ pub const LuaState = struct {
 
         if (!raw) {
             const mf = getMetafield(self.allocator, t, "__index", self);
-            if (std.meta.activeTag(mf) != .nil) {
+            if (!mf.isNil()) {
                 return switch (mf) {
-                    .lua_table => |_| self.getTable(mf, k, false),
-                    .closure => |_| {
-                        self.stack.?.push(mf);
-                        self.stack.?.push(t);
-                        self.stack.?.push(k);
-                        self.call(2, 1);
-                        const v = self.stack.?.get(-1);
-                        return typeof(v);
+                    .obj => |obj| switch (obj.*.as) {
+                        .lua_table => |_| self.getTable(mf, k, false),
+                        .closure => |_| {
+                            self.stack.?.push(mf);
+                            self.stack.?.push(t);
+                            self.stack.?.push(k);
+                            self.call(2, 1);
+                            const v = self.stack.?.get(-1);
+                            return typeof(v);
+                        },
+                        else => @panic("index error!"),
                     },
                     else => @panic("index error!"),
                 };
@@ -779,10 +796,8 @@ pub const LuaState = struct {
     // http://www.lua.org/manual/5.3/manual.html#lua_settable
     pub fn SetTable(self: *LuaState, idx: i32) void {
         const t = self.stack.?.get(idx);
-        var v = self.stack.?.pop();
-        defer v.deinit(self.allocator);
-        var k = self.stack.?.pop();
-        defer k.deinit(self.allocator);
+        const v = self.stack.?.pop();
+        const k = self.stack.?.pop();
         self.setTable(t, k, v, false);
     }
 
@@ -790,36 +805,25 @@ pub const LuaState = struct {
     // http://www.lua.org/manual/5.3/manual.html#lua_setfield
     pub fn setField(self: *LuaState, idx: i32, k: string) void {
         const t = self.stack.?.get(idx);
-        var v = self.stack.?.pop();
-        defer v.deinit(self.allocator);
-        const lua_string = LuaString.create(self.allocator, k);
-        var key = LuaValue{ .string = lua_string };
-        defer key.deinit(self.allocator);
-        self.setTable(t, key, v, false);
+        const v = self.stack.?.pop();
+        const lv_str = self.gc.createLVString(k);
+        self.setTable(t, lv_str, v, false);
     }
 
     // [-1, +0, e]
     // http://www.lua.org/manual/5.3/manual.html#lua_seti
     pub fn setI(self: *LuaState, idx: i32, i: i64) void {
         const t = self.stack.?.get(idx);
-        var v = self.stack.?.pop();
-        defer v.deinit(self.allocator);
-        self.setTable(
-            t,
-            .{ .int64 = i },
-            v,
-            false,
-        );
+        const v = self.stack.?.pop();
+        self.setTable(t, .{ .int64 = i }, v, false);
     }
 
     // [-2, +0, m]
     // http://www.lua.org/manual/5.3/manual.html#lua_rawset
     pub fn rawSet(self: *LuaState, idx: i32) void {
         const t = self.stack.?.get(idx);
-        var v = self.stack.?.pop();
-        defer v.deinit(self.allocator);
-        var k = self.stack.?.pop();
-        defer k.deinit(self.allocator);
+        const v = self.stack.?.pop();
+        const k = self.stack.?.pop();
         self.setTable(t, k, v, true);
     }
 
@@ -827,26 +831,17 @@ pub const LuaState = struct {
     // http://www.lua.org/manual/5.3/manual.html#lua_rawseti
     pub fn rawSetI(self: *LuaState, idx: i32, i: i64) void {
         const t = self.stack.?.get(idx);
-        var v = self.stack.?.pop();
-        defer v.deinit(self.allocator);
+        const v = self.stack.?.pop();
         self.setTable(t, .{ .int64 = i }, v, true);
     }
 
     // [-1, +0, e]
     // http://www.lua.org/manual/5.3/manual.html#lua_setglobal
     pub fn setGlobal(self: *LuaState, name: string) void {
-        var t = self.registry.get(.{ .int64 = LUA_RIDX_GLOBALS });
-        defer t.deinit(self.allocator);
-        var v = self.stack.?.pop();
-        defer v.deinit(self.allocator);
-        const lua_string = LuaString.create(self.allocator, name);
-        defer lua_string.release(self.allocator); // it will be cloned when put
-        self.setTable(
-            t,
-            .{ .string = lua_string },
-            v,
-            false,
-        );
+        const t = self.registry.get(.{ .int64 = LUA_RIDX_GLOBALS });
+        const v = self.stack.?.pop();
+        const k = self.gc.createLVString(name);
+        self.setTable(t, k, v, false);
     }
 
     // [-0, +0, e]
@@ -860,21 +855,24 @@ pub const LuaState = struct {
     // http://www.lua.org/manual/5.3/manual.html#lua_setmetatable
     pub fn SetMetatable(self: *LuaState, idx: i32) void {
         const val = self.stack.?.get(idx);
-        var mt_val = self.stack.?.pop();
-        defer mt_val.deinit(self.allocator);
+        const mt_val = self.stack.?.pop();
 
         switch (mt_val) {
             .nil => |_| setMetatable(self.allocator, val, null, self),
-            .lua_table => |t| setMetatable(self.allocator, val, t, self),
-            else => @panic("table expected!"),
+            .obj => |_| {
+                const mt = mt_val.asTable();
+                setMetatable(self.allocator, val, mt, self);
+            },
+            else => @panic("table expected!"), // todo
         }
     }
 
     // t[k]=v
     fn setTable(self: *LuaState, t: LuaValue, k: LuaValue, v: LuaValue, raw: bool) void {
-        if (std.meta.activeTag(t) == .lua_table) {
-            const tbl = t.lua_table;
-            if (raw or std.meta.activeTag(tbl.get(k)) != .nil or !tbl.hasMetaField("__newindex")) {
+        const ok = t.isTable();
+        if (ok) {
+            const tbl = t.asTable();
+            if (raw or !tbl.get(k).isNil() or !tbl.hasMetaField("__newindex", self)) {
                 tbl.put(k, v);
                 return;
             }
@@ -882,15 +880,19 @@ pub const LuaState = struct {
 
         if (!raw) {
             const mf = getMetafield(self.allocator, t, "__newindex", self);
-            if (std.meta.activeTag(mf) != .nil) {
+            if (!mf.isNil()) {
                 return switch (mf) {
-                    .lua_table => |_| self.setTable(mf, k, v, false),
-                    .closure => |_| {
-                        self.stack.?.push(mf);
-                        self.stack.?.push(t);
-                        self.stack.?.push(k);
-                        self.stack.?.push(v);
-                        self.call(3, 0);
+                    .obj => |obj| switch (obj.*.as) {
+                        .lua_table => |_| self.setTable(mf, k, v, false),
+                        .closure => |_| {
+                            self.stack.?.push(mf);
+                            self.stack.?.push(t);
+                            self.stack.?.push(k);
+                            self.stack.?.push(v);
+                            self.call(3, 0);
+                            return;
+                        },
+                        else => @panic("index error!"),
                     },
                     else => @panic("index error!"),
                 };
@@ -904,33 +906,11 @@ pub const LuaState = struct {
 
     // api_closure
     pub fn setClosure(self: *LuaState, proto: *binchunk.Prototype) void {
-        const closure = self.allocator.create(Closure) catch @panic("allocation failed");
-        closure.* = Closure.initLuaClosure(self.allocator, proto);
-        self.stack.?.closure = closure;
-    }
-
-    pub fn unsetClosure(self: *LuaState) void {
-        if (self.stack.?.closure) |c| {
-            c.*.release(self.allocator);
-        }
+        var lv_closure = self.gc.createLVLuaClosure(proto);
+        self.stack.?.closure = lv_closure.asClosure();
     }
 
     /// **************************  api_call  **************************
-
-    // api_call
-    pub fn pushLuaStack(self: *LuaState, stack: *LuaStack) void {
-        stack.prev = self.stack;
-        self.stack = stack;
-    }
-
-    pub fn popLuaStack(self: *LuaState) void {
-        const lua_stack = self.stack;
-        if (lua_stack) |stack| {
-            self.stack = stack.prev.?;
-            stack.deinit();
-            self.allocator.destroy(stack);
-        }
-    }
 
     // [-0, +1, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_load
@@ -939,12 +919,15 @@ pub const LuaState = struct {
         _ = mode;
 
         const proto = binchunk.undump(chunk);
-        const c = self.allocator.create(Closure) catch @panic("allocation failed");
-        c.* = Closure.initLuaClosure(self.allocator, proto);
-        self.stack.?.push(.{ .closure = c });
+        var lv_closure = self.gc.createLVLuaClosure(proto);
+        const c = lv_closure.asClosure();
+
+        self.stack.?.push(lv_closure);
         if (proto.upvalues.len > 0) {
-            const env = self.registry.get(.{ .int64 = LUA_RIDX_GLOBALS });
-            c.upvals[0] = Upvalue.createClosed(self.allocator, env);
+            var env = self.registry.get(.{ .int64 = LUA_RIDX_GLOBALS });
+            const env_ref = &env;
+            var lv_upvalue = self.gc.createClosedObjUpValue(env_ref);
+            c.upvals[0] = lv_upvalue.asUpval();
         }
 
         return 0;
@@ -956,43 +939,35 @@ pub const LuaState = struct {
         const val = self.stack.?.get(-(n_args + 1));
 
         // first try call closure
-        switch (val) {
-            .closure => |c| {
-                if (c.proto != null) {
-                    std.debug.print("call {s}<{d},{d}>\n", .{
-                        c.proto.?.source,
-                        c.proto.?.line_defined,
-                        c.proto.?.last_line_defined,
-                    });
-                    self.callLuaClosure(n_args, n_results, c);
-                } else {
-                    self.callZigClosure(n_args, n_results, c);
+        var ok: bool = val.isClosure();
+        var c: *Closure = if (ok) val.asClosure() else undefined;
+        var new_n_args = n_args;
+        if (!ok) {
+            // then try call __call metamethod
+            const mf = getMetafield(self.allocator, val, "__call", self);
+            if (!mf.isNil()) {
+                ok = mf.isClosure();
+                c = mf.asClosure();
+                if (ok) {
+                    self.stack.?.push(val);
+                    self.insert(-(n_args + 2));
+                    new_n_args = n_args + 1;
                 }
-                return;
-            },
-            else => {},
+            }
         }
-
-        // then try call __call metamethod
-        const mf = getMetafield(self.allocator, val, "__call", self);
-        switch (mf) {
-            .closure => |c| {
-                self.stack.?.push(val);
-                self.insert(-(n_args + 2));
-                const new_n_args = n_args + 1;
-                if (c.proto != null) {
-                    std.debug.print("call {s}<{d},{d}>\n", .{
-                        c.proto.?.source,
-                        c.proto.?.line_defined,
-                        c.proto.?.last_line_defined,
-                    });
-                    self.callLuaClosure(new_n_args, n_results, c);
-                } else {
-                    self.callZigClosure(new_n_args, n_results, c);
-                }
-                return;
-            },
-            else => @panic("not function!"),
+        if (ok) {
+            if (c.proto != null) {
+                std.debug.print("call {s}<{d},{d}>\n", .{
+                    c.proto.?.source,
+                    c.proto.?.line_defined,
+                    c.proto.?.last_line_defined,
+                });
+                self.callLuaClosure(new_n_args, n_results, c);
+            } else {
+                self.callZigClosure(new_n_args, n_results, c);
+            }
+        } else {
+            @panic("not function!");
         }
     }
 
@@ -1008,7 +983,7 @@ pub const LuaState = struct {
             args = self.stack.?.popN(n_args);
             new_stack.pushN(args.?, n_args);
         }
-        var func = self.stack.?.pop();
+        _ = self.stack.?.pop();
 
         // run closure
         self.pushLuaStack(new_stack);
@@ -1027,11 +1002,6 @@ pub const LuaState = struct {
             const n = if (n_results < 0) @as(i32, @intCast(res.len)) else n_results;
             self.stack.?.check(n);
             self.stack.?.pushN(res, n_results);
-            if (n_results >= 0 and res.len > @as(usize, @intCast(n_results))) {
-                for (res[@as(usize, @intCast(n_results))..]) |*v| {
-                    v.deinit(self.allocator);
-                }
-            }
             self.allocator.free(res);
         }
 
@@ -1039,8 +1009,6 @@ pub const LuaState = struct {
         if (args) |a| {
             self.allocator.free(a);
         }
-
-        func.deinit(self.allocator);
     }
 
     fn callLuaClosure(self: *LuaState, n_args: i32, n_results: i32, c: *Closure) void {
@@ -1086,16 +1054,8 @@ pub const LuaState = struct {
             const n = if (n_results < 0) @as(i32, @intCast(res.len)) else n_results;
             self.stack.?.check(n);
             self.stack.?.pushN(res, n_results);
-            if (n_results >= 0 and res.len > @as(usize, @intCast(n_results))) {
-                for (res[@as(usize, @intCast(n_results))..]) |*v| {
-                    v.deinit(self.allocator);
-                }
-            }
             self.allocator.free(res);
         }
-
-        // Deinit the closure that was popped from the stack
-        func_and_args[0].deinit(self.allocator);
     }
 
     fn runLuaClosure(self: *LuaState) void {

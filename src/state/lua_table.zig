@@ -2,6 +2,7 @@ const std = @import("std");
 const math = std.math;
 
 const number = @import("../number/root.zig").number;
+const LuaState = @import("lua_state.zig").LuaState;
 const LuaString = @import("lua_string.zig").LuaString;
 const LuaValue = @import("lua_value.zig").LuaValue;
 
@@ -9,7 +10,6 @@ const string = []const u8;
 
 pub const LuaTable = struct {
     allocator: std.mem.Allocator,
-    ref_count: u32,
     meta_table: ?*LuaTable,
     arr: std.ArrayList(LuaValue),
     map: std.HashMap(
@@ -37,7 +37,6 @@ pub const LuaTable = struct {
 
         return .{
             .allocator = allocator,
-            .ref_count = 1,
             .meta_table = null,
             .arr = arr,
             .map = map,
@@ -46,30 +45,10 @@ pub const LuaTable = struct {
 
     pub fn deinit(self: *LuaTable) void {
         // free array partition
-        for (self.arr.items) |*item| {
-            item.deinit(self.allocator);
-        }
         self.arr.deinit(self.allocator);
 
         // free hashmap partition
-        var it = self.map.iterator();
-        while (it.next()) |entry| {
-            entry.key_ptr.*.deinit(self.allocator);
-            entry.value_ptr.*.deinit(self.allocator);
-        }
         self.map.deinit();
-    }
-
-    pub fn retain(self: *LuaTable) void {
-        self.ref_count += 1;
-    }
-
-    pub fn release(self: *LuaTable, allocator: std.mem.Allocator) void {
-        self.ref_count -= 1;
-        if (self.ref_count == 0) {
-            self.deinit();
-            allocator.destroy(self);
-        }
     }
 
     /// Get a value from the table.
@@ -80,11 +59,11 @@ pub const LuaTable = struct {
         if (std.meta.activeTag(k1) == .int64) {
             const idx = k1.int64;
             if (idx >= 1 and idx <= @as(i64, @intCast(self.arr.items.len))) {
-                return self.arr.items[@as(usize, @intCast(idx - 1))].clone(self.allocator);
+                return self.arr.items[@as(usize, @intCast(idx - 1))];
             }
         }
         if (self.map.get(k1)) |v| {
-            return v.clone(self.allocator);
+            return v;
         } else {
             return LuaValue.LUA_NIL;
         }
@@ -107,10 +86,7 @@ pub const LuaTable = struct {
             if (idx >= 1) {
                 const arr_len: i64 = @intCast(self.arr.items.len);
                 if (idx <= arr_len) {
-                    // Free the old value before replacing it
-                    self.arr.items[@as(usize, @intCast(idx - 1))].deinit(self.allocator);
-
-                    self.arr.items[@as(usize, @intCast(idx - 1))] = val.clone(self.allocator);
+                    self.arr.items[@as(usize, @intCast(idx - 1))] = val;
                     if (idx == arr_len and std.meta.activeTag(val) == .nil) {
                         self._shrinkArray();
                     }
@@ -124,7 +100,7 @@ pub const LuaTable = struct {
                         _val.deinit(self.allocator);
                     }
                     if (std.meta.activeTag(val) != .nil) {
-                        self.arr.append(self.allocator, val.clone(self.allocator)) catch @panic("allocation failed!");
+                        self.arr.append(self.allocator, val) catch @panic("allocation failed!");
                         self._expandArray();
                     }
                     return;
@@ -142,7 +118,7 @@ pub const LuaTable = struct {
                 _key.deinit(self.allocator);
                 _val.deinit(self.allocator);
             }
-            self.map.put(k.clone(self.allocator), val.clone(self.allocator)) catch @panic("table-put failed!");
+            self.map.put(k, val) catch @panic("table-put failed!");
         } else {
             if (self.map.fetchRemove(k)) |kv| {
                 var _key = kv.key;
@@ -153,11 +129,10 @@ pub const LuaTable = struct {
         }
     }
 
-    pub fn hasMetaField(self: *LuaTable, fieldName: string) bool {
+    pub fn hasMetaField(self: *LuaTable, fieldName: string, ls: *LuaState) bool {
         if (self.meta_table) |mt| {
-            const lua_string = LuaString.create(self.allocator, fieldName);
-            defer lua_string.release(self.allocator);
-            return std.meta.activeTag(mt.get(.{ .string = lua_string })) != .nil;
+            const key = ls.gc.createLVString(fieldName);
+            return std.meta.activeTag(mt.get(key)) != .nil;
         } else {
             return false;
         }

@@ -3,10 +3,8 @@ const math = std.math;
 
 const binchunk = @import("../binchunk/root.zig").binchunk;
 const number = @import("../number//root.zig").number;
-pub const Closure = @import("closure.zig").Closure;
 const convertToFloat = @import("lua_value.zig").convertToFloat;
 const convertToInteger = @import("lua_value.zig").convertToInteger;
-pub const LuaTable = @import("lua_table.zig").LuaTable;
 pub const LuaValue = @import("lua_value.zig").LuaValue;
 
 const string = []const u8;

@@ -6,6 +6,7 @@ const CompareOp = api.CompareOp;
 const LuaType = api.LuaType;
 const binchunk = @import("../binchunk/root.zig").binchunk;
 const ZigFunction = @import("../state/closure.zig").ZigFunction;
+const GC = @import("../state/gc.zig").GC;
 const LuaString = @import("../state/lua_string.zig").LuaString;
 const LuaState = @import("../state/root.zig").state.LuaState;
 
@@ -13,17 +14,25 @@ const string = []const u8;
 
 pub const LuaVM = struct {
     ls: *LuaState,
+
+    // memory management
     allocator: std.mem.Allocator,
+    gc: *GC,
 
     pub fn init(allocator: std.mem.Allocator) !LuaVM {
+        const gc = try allocator.create(GC);
+        gc.* = GC.init(allocator);
+        errdefer allocator.destroy(gc);
+
         const ls = try allocator.create(LuaState);
         errdefer allocator.destroy(ls);
 
-        ls.* = try LuaState.init(allocator);
+        ls.* = try LuaState.init(allocator, gc);
 
         return .{
             .ls = ls,
             .allocator = allocator,
+            .gc = gc,
         };
     }
 
@@ -31,12 +40,16 @@ pub const LuaVM = struct {
         return .{
             .ls = ls,
             .allocator = ls.allocator,
+            .gc = ls.gc,
         };
     }
 
     pub fn deinit(self: *LuaVM) void {
         self.ls.deinit();
         self.allocator.destroy(self.ls);
+
+        self.gc.deinit();
+        self.allocator.destroy(self.gc);
     }
 
     /// **************************  api_access  **************************
@@ -473,10 +486,6 @@ pub const LuaVM = struct {
     // api_closure
     pub fn setClosure(self: *LuaVM, proto: *binchunk.Prototype) void {
         self.ls.setClosure(proto);
-    }
-
-    pub fn unsetClosure(self: *LuaVM) void {
-        self.ls.unsetClosure();
     }
 
     /// **************************  api_all  **************************

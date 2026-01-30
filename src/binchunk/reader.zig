@@ -2,6 +2,7 @@ const std = @import("std");
 const testing = std.testing;
 const expect = testing.expect;
 
+const Object = @import("../state//lua_object.zig").Object;
 const LuaString = @import("../state/lua_string.zig").LuaString;
 const LuaValue = @import("../state/lua_value.zig").LuaValue;
 const Header = @import("binary_chunk.zig").Header;
@@ -161,7 +162,15 @@ pub const Reader = struct {
             @intFromEnum(Tag.boolean) => LuaValue{ .bool = self.readByte() != 0 },
             @intFromEnum(Tag.integer) => LuaValue{ .int64 = self.readLuaInteger() },
             @intFromEnum(Tag.number) => LuaValue{ .float64 = self.readLuaNumber() },
-            @intFromEnum(Tag.short_str), @intFromEnum(Tag.long_str) => LuaValue{ .string = LuaString.create(self.allocator, self.readString()) },
+            @intFromEnum(Tag.short_str), @intFromEnum(Tag.long_str) => {
+                const object = self.allocator.create(Object) catch @panic("allocation failed");
+                object.* = .{
+                    .as = .{
+                        .string = LuaString.create(self.allocator, self.readString()),
+                    },
+                };
+                return .{ .obj = object };
+            },
             else => @panic("corrupted!"),
         };
     }
