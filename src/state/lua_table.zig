@@ -19,6 +19,22 @@ pub const LuaTable = struct {
         std.hash_map.default_max_load_percentage,
     ),
 
+    pub fn mark(self: *LuaTable) void {
+        if (self.meta_table) |mt| {
+            mt.mark();
+        }
+
+        for (self.arr.items) |*item| {
+            item.mark();
+        }
+
+        var it = self.map.iterator();
+        while (it.next()) |entry| {
+            entry.key_ptr.*.mark();
+            entry.value_ptr.*.mark();
+        }
+    }
+
     pub fn init(allocator: std.mem.Allocator, n_arr: i32, n_rec: i32) LuaTable {
         const arr = std.ArrayList(LuaValue).initCapacity(
             allocator,

@@ -5,22 +5,26 @@ const LuaString = @import("lua_string.zig").LuaString;
 const LuaTable = @import("lua_table.zig").LuaTable;
 const UpValue = @import("closure.zig").UpValue;
 
-const LuaThread = struct {
+pub const LuaThread = struct {
     pub fn deinit(self: *LuaThread, allocator: std.mem.Allocator) void {
         allocator.destroy(self);
     }
+
+    pub fn mark(self: *LuaThread) void {
+        _ = self;
+    }
+};
+
+pub const ObjectTag = enum {
+    string,
+    lua_table,
+    closure,
+    lua_state,
+    upval,
+    none,
 };
 
 pub const Object = struct {
-    pub const ObjectTag = enum {
-        string,
-        lua_table,
-        closure,
-        lua_state,
-        upval,
-        none,
-    };
-
     pub const AS = union(ObjectTag) {
         string: *LuaString,
         lua_table: *LuaTable,
@@ -33,6 +37,31 @@ pub const Object = struct {
     next: ?*Object = null,
     marked: bool = false,
     as: AS = .{ .none = {} },
+
+    pub fn mark(self: *Object) void {
+        switch (self.as) {
+            .string => {
+                self.marked = true;
+            },
+            .lua_table => |t| {
+                self.marked = true;
+                t.mark();
+            },
+            .closure => |c| {
+                self.marked = true;
+                c.mark();
+            },
+            .lua_state => |lt| {
+                self.marked = true;
+                lt.mark();
+            },
+            .upval => |uv| {
+                self.marked = true;
+                uv.mark();
+            },
+            .none => {},
+        }
+    }
 
     pub fn deinit(self: *Object, allocator: std.mem.Allocator) void {
         switch (self.as) {

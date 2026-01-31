@@ -94,6 +94,16 @@ pub const LuaValue = union(LuaValueTag) {
         return self.*.obj.*.as.string;
     }
 
+    pub fn mark(self: *const LuaValue) void {
+        switch (self.*) {
+            .obj => |obj| {
+                if (obj.marked) return;
+                obj.mark();
+            },
+            else => {},
+        }
+    }
+
     pub fn hash(self: LuaValue) u64 {
         var hasher = std.hash.Wyhash.init(0);
 

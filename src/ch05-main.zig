@@ -29,6 +29,8 @@ pub fn main() !void {
     defer lua_state.deinit();
 
     var ls = &lua_state;
+    gc.lua_state = ls;
+
     ls.pushInteger(1);
     ls.pushString("2.0");
     ls.pushString("3.0");

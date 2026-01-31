@@ -26,6 +26,8 @@ pub fn main() !void {
     defer lua_state.deinit();
 
     var ls = &lua_state;
+    gc.lua_state = ls;
+
     ls.pushBoolean(true);
     printStack(ls);
     ls.pushInteger(10);

@@ -44,6 +44,24 @@ pub const LuaStack = struct {
         };
     }
 
+    pub fn mark(self: *LuaStack) void {
+        for (self.slots.items) |*item| {
+            item.mark();
+        }
+        if (self.closure) |closure| {
+            closure.mark();
+        }
+        if (self.openuvs) |openuvs| {
+            var it = openuvs.iterator();
+            while (it.next()) |entry| {
+                entry.value_ptr.*.mark();
+            }
+        }
+        if (self.prev) |prev| {
+            prev.mark();
+        }
+    }
+
     pub fn deinit(self: *LuaStack) void {
         // collect slots
         self.slots.deinit(self.allocator);

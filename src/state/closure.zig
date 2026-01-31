@@ -8,8 +8,8 @@ const Object = @import("lua_object.zig").Object;
 pub const ZigFunction = *const fn (*LuaState) i32;
 
 pub const UpValue = struct {
-    val: *LuaValue,
-    closed_val: LuaValue = LuaValue.LUA_NIL,
+    val: *LuaValue, // borrowed from stack.slots
+    closed_val: LuaValue = LuaValue.LUA_NIL, // owned
 
     pub fn init(val: *LuaValue) UpValue {
         return .{
@@ -47,6 +47,11 @@ pub const UpValue = struct {
             self.closed_val = self.val.*;
             self.val = &self.closed_val;
         }
+    }
+
+    pub fn mark(self: *UpValue) void {
+        self.val.mark();
+        self.closed_val.mark();
     }
 };
 
@@ -87,6 +92,14 @@ pub const Closure = struct {
         }
 
         return self;
+    }
+
+    pub fn mark(self: *Closure) void {
+        for (self.upvals) |upval| {
+            if (upval) |uv| {
+                uv.mark();
+            }
+        }
     }
 
     pub fn deinit(self: *Closure, allocator: std.mem.Allocator) void {

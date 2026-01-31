@@ -29,6 +29,8 @@ pub const LuaVM = struct {
 
         ls.* = try LuaState.init(allocator, gc);
 
+        gc.lua_state = ls;
+
         return .{
             .ls = ls,
             .allocator = allocator,

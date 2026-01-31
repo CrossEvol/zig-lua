@@ -74,6 +74,13 @@ pub const LuaState = struct {
         }
     }
 
+    pub fn mark(self: *const LuaState) void {
+        self.registry.mark();
+        if (self.stack) |stack| {
+            stack.mark();
+        }
+    }
+
     pub fn pushLuaStack(self: *LuaState, stack: *LuaStack) void {
         stack.prev = self.stack;
         self.stack = stack;
