@@ -1052,9 +1052,13 @@ pub const LuaState = struct {
         // pass args, pop func
         var args: ?[]LuaValue = null;
         if (n_args > 0) {
-            args = try self.stack.?.popN(n_args);
+            args = try self.stack.?.popN(self.allocator, n_args);
             try new_stack.pushN(args.?, n_args);
         }
+        // Ensure free args memory even unwind stacks
+        defer if (args) |a| {
+            self.allocator.free(a);
+        };
         _ = try self.stack.?.pop();
 
         // run closure
@@ -1062,7 +1066,13 @@ pub const LuaState = struct {
         const r = try c.zig_func.?(self);
 
         // get results before popping the stack
-        const results = if (n_results != 0) try new_stack.popN(r) else null;
+        const results = if (n_results != 0)
+            try new_stack.popN(self.allocator, r)
+        else
+            null;
+        defer if (results) |res| {
+            self.allocator.free(res);
+        };
 
         self.popLuaStack();
 
@@ -1071,12 +1081,6 @@ pub const LuaState = struct {
             const n = if (n_results < 0) @as(i32, @intCast(res.len)) else n_results;
             self.stack.?.check(n);
             try self.stack.?.pushN(res, n_results);
-            self.allocator.free(res);
-        }
-
-        // Free args memory
-        if (args) |a| {
-            self.allocator.free(a);
         }
     }
 
@@ -1091,7 +1095,7 @@ pub const LuaState = struct {
         new_stack.closure = c;
 
         // pass args, pop func
-        const func_and_args = try self.stack.?.popN(n_args + 1);
+        const func_and_args = try self.stack.?.popN(self.allocator, n_args + 1);
         defer self.allocator.free(func_and_args);
 
         try new_stack.pushN(func_and_args[1..], n_params);
@@ -1112,9 +1116,12 @@ pub const LuaState = struct {
                 0;
         const results =
             if (n_results != 0 and results_count > 0)
-                try new_stack.popN(results_count)
+                try new_stack.popN(self.allocator, results_count)
             else
                 null;
+        defer if (results) |res| {
+            self.allocator.free(res);
+        };
 
         self.popLuaStack();
 
@@ -1123,7 +1130,6 @@ pub const LuaState = struct {
             const n = if (n_results < 0) @as(i32, @intCast(res.len)) else n_results;
             self.stack.?.check(n);
             try self.stack.?.pushN(res, n_results);
-            self.allocator.free(res);
         }
     }
 

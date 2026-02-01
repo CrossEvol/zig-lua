@@ -128,8 +128,8 @@ pub const LuaStack = struct {
         }
     }
 
-    pub fn popN(self: *LuaStack, n: i32) LuaError![]LuaValue {
-        const vals = self.allocator.alloc(LuaValue, @as(usize, @intCast(n))) catch @panic("allocation failed");
+    pub fn popN(self: *LuaStack, allocator: std.mem.Allocator, n: i32) LuaError![]LuaValue {
+        const vals = allocator.alloc(LuaValue, @as(usize, @intCast(n))) catch @panic("allocation failed");
         var i = n - 1;
         while (i >= 0) : (i -= 1) {
             vals[@as(usize, @intCast(i))] = try self.pop();
