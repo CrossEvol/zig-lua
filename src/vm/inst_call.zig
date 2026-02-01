@@ -34,6 +34,17 @@ pub fn vararg(i: Instruction, vm: *LuaVM) void {
     }
 }
 
+// R(A+3), ... ,R(A+2+C) := R(A)(R(A+1), R(A+2));
+pub fn tForCall(i: Instruction, vm: *LuaVM) void {
+    var a, const b, const c = i.ABC();
+    _ = b;
+    a += 1;
+
+    _ = _pushFuncAndArgs(a, 3, vm);
+    vm.call(2, c);
+    _popResults(a + 3, c + 1, vm);
+}
+
 // return R(A)(R(A+1), ... ,R(A+B-1))
 pub fn tailCall(i: Instruction, vm: *LuaVM) void {
     var a, const b, var c = i.ABC();

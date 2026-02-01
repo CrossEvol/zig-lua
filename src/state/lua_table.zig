@@ -20,6 +20,14 @@ pub const LuaTable = struct {
         LuaValueContext,
         std.hash_map.default_max_load_percentage,
     ),
+    keys: ?std.HashMap(
+        LuaValue,
+        LuaValue,
+        LuaValueContext,
+        std.hash_map.default_max_load_percentage,
+    ), // used by next()
+    last_key: LuaValue, // used by next()
+    changed: bool, // used by next()
 
     pub fn markEntries(self: *LuaTable) void {
         if (self.meta_table) |mt| {
@@ -34,6 +42,14 @@ pub const LuaTable = struct {
         while (it.next()) |entry| {
             entry.key_ptr.*.mark();
             entry.value_ptr.*.mark();
+        }
+
+        if (self.keys) |keys| {
+            it = keys.iterator();
+            while (it.next()) |entry| {
+                entry.key_ptr.*.mark();
+                entry.value_ptr.*.mark();
+            }
         }
     }
 
@@ -59,6 +75,9 @@ pub const LuaTable = struct {
             .meta_table = null,
             .arr = arr,
             .map = map,
+            .keys = null,
+            .last_key = LuaValue.LUA_NIL,
+            .changed = false,
         };
     }
 
@@ -68,6 +87,11 @@ pub const LuaTable = struct {
 
         // free hashmap partition
         self.map.deinit();
+
+        // free keys
+        if (self.keys) |*keys| {
+            keys.deinit();
+        }
     }
 
     // Cast from generic object -> LuaTable(**Downcast**)
@@ -108,6 +132,8 @@ pub const LuaTable = struct {
         if (key == .float64 and math.isNan(key.float64)) {
             @panic("table index is NaN!");
         }
+
+        self.changed = true;
 
         const k = _floatToInteger(key);
         if (k == .int64) {
@@ -200,6 +226,51 @@ pub const LuaTable = struct {
                 break;
             }
         }
+    }
+
+    pub fn nextKey(self: *LuaTable, key: LuaValue) LuaValue {
+        if (self.keys == null or (key == .nil and self.changed)) {
+            self.initKeys();
+            self.changed = false;
+        }
+
+        const next_key = self.keys.?.get(key) orelse LuaValue.LUA_NIL;
+        if (next_key == .nil and key != .nil and !key.eql(self.last_key)) {
+            @panic("invalid key to 'next'");
+        }
+        return next_key;
+    }
+
+    fn initKeys(self: *LuaTable) void {
+        if (self.keys) |*keys| {
+            keys.deinit();
+        }
+        const keys = std.HashMap(
+            LuaValue,
+            LuaValue,
+            LuaValueContext,
+            std.hash_map.default_max_load_percentage,
+        ).init(self.allocator);
+        self.keys = keys;
+
+        var key = LuaValue.LUA_NIL;
+        for (0.., self.arr.items) |i, v| {
+            if (v != .nil) {
+                const next_key: LuaValue = .{ .int64 = @intCast(i + 1) };
+                self.keys.?.put(key, next_key) catch @panic("allocation failed!");
+                key = next_key;
+            }
+        }
+        var it = self.map.iterator();
+        while (it.next()) |entry| {
+            const k = entry.key_ptr.*;
+            const v = entry.value_ptr.*;
+            if (v != .nil) {
+                self.keys.?.put(key, k) catch @panic("allocation failed!");
+                key = k;
+            }
+        }
+        self.last_key = key;
     }
 };
 

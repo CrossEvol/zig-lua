@@ -50,3 +50,16 @@ pub fn forLoop(i: Instruction, vm: *LuaVM) void {
         vm.copy(a, a + 3);
     }
 }
+
+// if R(A+1) ~= nil then {
+//   R(A)=R(A+1); pc += sBx
+// }
+pub fn tForLoop(i: Instruction, vm: *LuaVM) void {
+    var a, const sBx = i.AsBx();
+    a += 1;
+
+    if (!vm.isNil(a + 1)) {
+        vm.copy(a + 1, a);
+        vm.addPC(sBx);
+    }
+}

@@ -582,6 +582,25 @@ pub const LuaState = struct {
         // n == 1, do nothing   w
     }
 
+    // [-1, +(2|0), e]
+    // http://www.lua.org/manual/5.3/manual.html#lua_next
+    pub fn next(self: *LuaState, idx: i32) bool {
+        const val = self.stack.?.get(idx);
+        const ok = val.isTable();
+        if (ok) {
+            const t = val.asTable();
+            const key = self.stack.?.pop();
+            const next_key = t.nextKey(key);
+            if (next_key != .nil) {
+                self.stack.?.push(next_key);
+                self.stack.?.push(t.get(next_key));
+                return true;
+            }
+            return false;
+        }
+        @panic("table expected!");
+    }
+
     /// **************************  api_vm  **************************
 
     // api_vm

@@ -340,6 +340,12 @@ pub const LuaVM = struct {
         self.ls.concat(n);
     }
 
+    // [-1, +(2|0), e]
+    // http://www.lua.org/manual/5.3/manual.html#lua_next
+    pub fn next(self: *LuaVM, idx: i32) bool {
+        return self.ls.next(idx);
+    }
+
     /// **************************  api_vm  **************************
     pub fn pc(self: *LuaVM) i32 {
         return self.ls.pc();
