@@ -5,10 +5,12 @@ const ArithOp = api.ArithOp;
 const CompareOp = api.CompareOp;
 const LuaType = api.LuaType;
 const LuaError = @import("../api/root.zig").Api.LuaError;
+const ThreadStatus = @import("../api/root.zig").Api.LuaError;
 const binchunk = @import("../binchunk/root.zig").binchunk;
 const ZigFunction = @import("../state/closure.zig").ZigFunction;
 const GC = @import("../state/gc.zig").GC;
 const LuaString = @import("../state/lua_string.zig").LuaString;
+const LuaValue = @import("../state/lua_value.zig").LuaValue;
 const LuaState = @import("../state/root.zig").state.LuaState;
 
 const string = []const u8;
@@ -344,7 +346,13 @@ pub const LuaVM = struct {
     // [-1, +(2|0), e]
     // http://www.lua.org/manual/5.3/manual.html#lua_next
     pub fn next(self: *LuaVM, idx: i32) LuaError!bool {
-        return self.ls.next(idx);
+        return try self.ls.next(idx);
+    }
+
+    // [-1, +0, v]
+    // http://www.lua.org/manual/5.3/manual.html#lua_error
+    pub fn Error(self: *LuaVM) LuaError!i32 {
+        return try self.ls.Error();
     }
 
     /// **************************  api_vm  **************************
@@ -497,7 +505,7 @@ pub const LuaVM = struct {
         self.ls.setClosure(proto);
     }
 
-    /// **************************  api_all  **************************
+    /// **************************  api_call  **************************
 
     // [-0, +1, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_load
@@ -509,5 +517,11 @@ pub const LuaVM = struct {
     // http://www.lua.org/manual/5.3/manual.html#lua_call
     pub fn call(self: *LuaVM, n_args: i32, n_results: i32) LuaError!void {
         try self.ls.call(n_args, n_results);
+    }
+
+    // Calls a function in protected mode.
+    // http://www.lua.org/manual/5.3/manual.html#lua_pcall
+    pub fn pCall(self: *LuaVM, n_args: i32, n_results: i32, msgh: i32) ThreadStatus {
+        return self.ls.pCall(n_args, n_results, msgh);
     }
 };

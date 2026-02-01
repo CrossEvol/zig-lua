@@ -2,6 +2,7 @@ const std = @import("std");
 const math = std.math;
 
 const api = @import("../api/root.zig").Api;
+const ThreadStatus = api.ThreadStatus;
 const LuaType = api.LuaType;
 const ArithOp = api.ArithOp;
 const CompareOp = api.CompareOp;
@@ -586,7 +587,9 @@ pub const LuaState = struct {
                     continue;
                 }
 
-                @panic("concatenation error!");
+                // @panic("concatenation error!");
+                try self.pushString("concatenation error!");
+                return LuaError.Panic;
             }
         }
         // n == 1, do nothing   w
@@ -610,6 +613,14 @@ pub const LuaState = struct {
         }
         // @panic("table expected!");
         try self.pushString("table expected!");
+        return LuaError.Panic;
+    }
+
+    // [-1, +0, v]
+    // http://www.lua.org/manual/5.3/manual.html#lua_error
+    pub fn Error(self: *LuaState) LuaError!i32 {
+        const err = try self.stack.?.pop();
+        try self.stack.?.push(err);
         return LuaError.Panic;
     }
 
@@ -941,14 +952,24 @@ pub const LuaState = struct {
                             try self.call(3, 0);
                             return;
                         },
-                        else => @panic("index error!"),
+                        else => {
+                            // @panic("index error!");
+                            try self.pushString("index error!");
+                            return LuaError.Panic;
+                        },
                     },
-                    else => @panic("index error!"),
+                    else => {
+                        // @panic("index error!");
+                        try self.pushString("index error!");
+                        return LuaError.Panic;
+                    },
                 };
             }
         }
 
-        @panic("index error!");
+        // @panic("index error!");
+        try self.pushString("index error!");
+        return LuaError.Panic;
     }
 
     /// **************************  api_closure  **************************
@@ -979,7 +1000,7 @@ pub const LuaState = struct {
             c.upvals[0] = lv_upvalue.asUpval();
         }
 
-        return 0;
+        return @intFromEnum(ThreadStatus.lua_ok);
     }
 
     // [-(nargs+1), +nresults, e]
@@ -1016,7 +1037,9 @@ pub const LuaState = struct {
                 try self.callZigClosure(new_n_args, n_results, c);
             }
         } else {
-            @panic("not function!");
+            // @panic("not function!");
+            try self.pushString("not function!");
+            return LuaError.Panic;
         }
     }
 
@@ -1114,5 +1137,41 @@ pub const LuaState = struct {
                 break :outer;
             }
         }
+    }
+
+    // Calls a function in protected mode.
+    // http://www.lua.org/manual/5.3/manual.html#lua_pcall
+    pub fn pCall(self: *LuaState, n_args: i32, n_results: i32, msgh: i32) ThreadStatus {
+        const caller = self.stack;
+
+        self.call(n_args, n_results) catch |err| {
+            if (err != LuaError.Panic) {
+                @panic("unknow error");
+            }
+            // msgh is the stack index of the error handler (if any)
+            if (msgh != 0) {
+                // For now, we don't support message handlers
+                @panic("message handler not supported yet");
+            }
+
+            // 1. Recover the error object from the top of the CURRENT active stack.
+            const err_val = if (self.stack != null and self.stack.?.top > 0)
+                self.stack.?.pop() catch LuaValue.LUA_NIL
+            else
+                LuaValue.LUA_NIL;
+
+            // 2. Unwind key: Pop stack frames until we return to the caller's frame.
+            //    Note: This destroys the intermediate stacks (and their OpenUpvalues if implemented).
+            while (self.stack != caller) {
+                self.popLuaStack();
+            }
+
+            // 3. Push error object to caller stack
+            self.stack.?.check(1);
+            self.stack.?.push(err_val) catch {};
+            return if (err == LuaError.Panic) .lua_errrun else .lua_errmem;
+        };
+
+        return .lua_ok;
     }
 };

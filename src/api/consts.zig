@@ -45,6 +45,17 @@ pub const CompareOp = enum {
     lua_op_le, // <=
 };
 
+pub const ThreadStatus = enum {
+    lua_ok,
+    lua_yield,
+    lua_errrun,
+    lua_errsyntax,
+    lua_errmem,
+    lua_errgcmm,
+    lua_errerr,
+    lua_errfile,
+};
+
 pub const LuaError = error{
     Panic,
     // add specific error types for objects because Zig errors cannot carry payloads.

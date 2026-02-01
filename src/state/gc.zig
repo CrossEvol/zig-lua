@@ -52,7 +52,7 @@ pub const GC = struct {
     fn verifyBytesAllocated(self: *GC, comptime T: type) void {
         self.bytes_allocated += @sizeOf(T);
         if (self.bytes_allocated > self.next_gc) {
-            std.debug.print("gc start, bytes_allocated = {}\n", .{self.bytes_allocated});
+            // std.debug.print("gc start, bytes_allocated = {}\n", .{self.bytes_allocated});
             self.collectGarbage();
         }
     }

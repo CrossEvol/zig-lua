@@ -5,6 +5,17 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Debug Ch13",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceRoot}/zig-out/bin/ch13.exe",
+            "args": [
+                "${workspaceRoot}/test_data/test13.luac"
+            ],
+            "cwd": "${workspaceRoot}",
+            "preLaunchTask": "build-ch13-debug"
+        },
+        {
             "name": "Debug Ch11",
             "type": "cppvsdbg",
             "request": "launch",

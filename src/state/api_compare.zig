@@ -35,7 +35,7 @@ pub fn _eq(allocator: std.mem.Allocator, a: LuaValue, b: LuaValue, ls: ?*LuaStat
             .lua_table => |_| {
                 const x = a.asTable();
                 var ok = b.isTable();
-                const y = b.asTable();
+                const y = if (ok) b.asTable() else undefined;
                 if (ok and x != y and ls != null) {
                     const result, ok = try callMetamethod(allocator, a, b, "__eq", ls.?);
                     if (ok) {

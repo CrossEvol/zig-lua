@@ -97,7 +97,9 @@ pub const Instruction = packed struct(u32) {
         if (action) |f| {
             try f(self, vm);
         } else {
-            @panic(self.opName());
+            // @panic(self.opName());
+            try vm.ls.pushString(self.opName());
+            return LuaError.Panic;
         }
     }
 };
