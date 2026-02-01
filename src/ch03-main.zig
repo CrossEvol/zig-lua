@@ -170,8 +170,8 @@ fn constantToString(k: LuaValue, allocator: Allocator) ![]const u8 {
         .bool => |b| try std.fmt.allocPrint(allocator, "{s}", .{if (b) "true" else "false"}),
         .float64 => |f| try std.fmt.allocPrint(allocator, "{d}", .{f}),
         .int64 => |i| try std.fmt.allocPrint(allocator, "{d}", .{i}),
-        .obj => |obj| switch (obj.*.as) {
-            .string => |s| try std.fmt.allocPrint(allocator, "\"{s}\"", .{s.data()}),
+        .obj => |obj| switch (obj.kind) {
+            .string => |_| try std.fmt.allocPrint(allocator, "\"{s}\"", .{k.asStr().data()}),
             else => "?",
         },
     };

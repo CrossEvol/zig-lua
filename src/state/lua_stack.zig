@@ -3,6 +3,7 @@ const std = @import("std");
 const binchunk = @import("../binchunk/root.zig").binchunk;
 const Closure = @import("closure.zig").Closure;
 const LuaState = @import("lua_state.zig").LuaState;
+const LuaTable = @import("lua_table.zig").LuaTable;
 const LuaValue = @import("lua_value.zig").LuaValue;
 const Object = @import("lua_object.zig").Object;
 const UpValue = @import("closure.zig").UpValue;
@@ -48,13 +49,18 @@ pub const LuaStack = struct {
         for (self.slots.items) |*item| {
             item.mark();
         }
+        if (self.varargs) |varargs| {
+            for (varargs) |val| {
+                val.mark();
+            }
+        }
         if (self.closure) |closure| {
-            closure.mark();
+            closure.asObj().markObject();
         }
         if (self.openuvs) |openuvs| {
             var it = openuvs.iterator();
             while (it.next()) |entry| {
-                entry.value_ptr.*.mark();
+                entry.value_ptr.*.asObj().markObject();
             }
         }
         if (self.prev) |prev| {
@@ -159,9 +165,8 @@ pub const LuaStack = struct {
         }
         if (idx == LUA_REGISTRYINDEX) {
             // Return the value without cloning - caller is responsible for cloning if needed
-            const table_object = self.allocator.create(Object) catch @panic("allocation failed");
-            table_object.* = .{ .as = .{ .lua_table = self.state.?.registry } };
-            return .{ .obj = table_object };
+            const t = self.allocator.create(LuaTable) catch @panic("allocation failed");
+            return .{ .obj = &t.obj };
         }
 
         const absIdx = self.absIndex(idx);
@@ -181,23 +186,18 @@ pub const LuaStack = struct {
             const c = self.closure;
             if (c != null and uv_idx < c.?.upvals.len) {
                 if (c.?.upvals[uv_idx]) |uv| {
-                    // uv.val.*.deinit(self.allocator);
                     uv.val.* = val;
                 }
             }
             return;
         }
         if (idx == LUA_REGISTRYINDEX) {
-            self.state.?.registry = val.obj.*.as.lua_table;
+            self.state.?.registry = val.asTable();
             return;
         }
 
         const absIdx = self.absIndex(idx);
         if (absIdx > 0 and absIdx <= self.top) {
-            // Free the old value before replacing it
-            // This is safe because replace() pops the new value first
-            // var old_val = self.slots.items[absIdx - 1];
-            // old_val.deinit(self.allocator);
             self.slots.items[absIdx - 1] = val;
             return;
         }

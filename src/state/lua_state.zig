@@ -75,7 +75,7 @@ pub const LuaState = struct {
     }
 
     pub fn mark(self: *const LuaState) void {
-        self.registry.mark();
+        self.registry.asObj().markObject();
         if (self.stack) |stack| {
             stack.mark();
         }
@@ -105,9 +105,9 @@ pub const LuaState = struct {
         if (self.stack) |stack| {
             const val = stack.get(idx);
             return switch (val) {
-                .obj => |obj| switch (obj.*.as) {
-                    .string => |s| s.len(),
-                    .lua_table => |t| t.len(),
+                .obj => |obj| switch (obj.kind) {
+                    .string => |_| val.asStr().len(),
+                    .lua_table => |_| val.asTable().len(),
                     else => 0,
                 },
                 else => 0,
@@ -216,8 +216,8 @@ pub const LuaState = struct {
     pub fn isZigFunction(self: *LuaState, idx: i32) bool {
         const val = self.stack.?.get(idx);
         switch (val) {
-            .obj => |obj| switch (obj.*.as) {
-                .closure => |c| c.zig_func != null,
+            .obj => |obj| switch (obj.kind) {
+                .closure => |_| val.asClosure().zig_func != null,
                 else => false,
             },
             else => false,
@@ -286,8 +286,8 @@ pub const LuaState = struct {
                 self.stack.?.set(idx, lv_str);
                 return .{ lv_str.asStr(), true };
             },
-            .obj => |obj| switch (obj.*.as) {
-                .string => |s| return .{ s, true },
+            .obj => |obj| switch (obj.kind) {
+                .string => |_| return .{ val.asStr(), true },
                 else => {
                     var lv_str = self.gc.createLVString("");
                     return .{ lv_str.asStr(), false };
@@ -305,8 +305,8 @@ pub const LuaState = struct {
     pub fn toZigFunction(self: *LuaState, idx: i32) ?ZigFunction {
         const val = self.stack.?.get(idx);
         switch (val) {
-            .obj => |obj| switch (obj.*.as) {
-                .closure => |c| c.zig_func,
+            .obj => |obj| switch (obj.kind) {
+                .closure => |_| val.asClosure().zig_func,
                 else => null,
             },
             else => null,
@@ -476,9 +476,7 @@ pub const LuaState = struct {
     // http://www.lua.org/manual/5.3/manual.html#l
     pub fn arith(self: *LuaState, op: ArithOp) void {
         const b = self.stack.?.pop();
-        // defer b.deinit(self.allocator);
         const a = if (op != .lua_op_unm and op != .lua_op_bnot) self.stack.?.pop() else b;
-        // defer if (op != .lua_op_unm and op != .lua_op_bnot) a.deinit(self.allocator);
 
         const operator = operators[@intFromEnum(op)];
         var result = _arith(a, b, operator);
@@ -753,8 +751,7 @@ pub const LuaState = struct {
         const val = self.stack.?.get(idx);
 
         if (getMetatable(self.allocator, val, self)) |mt| {
-            const table_obj = self.gc.allocateObject(.{ .lua_table = mt });
-            self.stack.?.push(table_obj);
+            self.stack.?.push(.{ .obj = &mt.obj });
             return true;
         } else {
             return false;
@@ -777,7 +774,7 @@ pub const LuaState = struct {
             const mf = getMetafield(self.allocator, t, "__index", self);
             if (!mf.isNil()) {
                 return switch (mf) {
-                    .obj => |obj| switch (obj.*.as) {
+                    .obj => |obj| switch (obj.kind) {
                         .lua_table => |_| self.getTable(mf, k, false),
                         .closure => |_| {
                             self.stack.?.push(mf);
@@ -889,7 +886,7 @@ pub const LuaState = struct {
             const mf = getMetafield(self.allocator, t, "__newindex", self);
             if (!mf.isNil()) {
                 return switch (mf) {
-                    .obj => |obj| switch (obj.*.as) {
+                    .obj => |obj| switch (obj.kind) {
                         .lua_table => |_| self.setTable(mf, k, v, false),
                         .closure => |_| {
                             self.stack.?.push(mf);
@@ -997,10 +994,7 @@ pub const LuaState = struct {
         const r = c.zig_func.?(self);
 
         // get results before popping the stack
-        var results: ?[]LuaValue = null;
-        if (n_results != 0) {
-            results = new_stack.popN(r);
-        }
+        const results = if (n_results != 0) new_stack.popN(r) else null;
 
         self.popLuaStack();
 
@@ -1043,16 +1037,16 @@ pub const LuaState = struct {
         self.runLuaClosure();
 
         // get results before popping the stack
-        var results: ?[]LuaValue = null;
-        if (n_results != 0) {
-            const stack_top = @as(i32, @intCast(new_stack.top));
-            const registers = @as(i32, @intCast(n_registers));
-            const results_count = if (stack_top > registers) stack_top - registers else 0;
-
-            if (results_count > 0) {
-                results = new_stack.popN(results_count);
-            }
-        }
+        const results_count =
+            if (new_stack.top > n_registers)
+                @as(i32, @intCast(new_stack.top - n_registers))
+            else
+                0;
+        const results =
+            if (n_results != 0 and results_count > 0)
+                new_stack.popN(results_count)
+            else
+                null;
 
         self.popLuaStack();
 

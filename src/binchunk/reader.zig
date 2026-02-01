@@ -163,13 +163,8 @@ pub const Reader = struct {
             @intFromEnum(Tag.integer) => LuaValue{ .int64 = self.readLuaInteger() },
             @intFromEnum(Tag.number) => LuaValue{ .float64 = self.readLuaNumber() },
             @intFromEnum(Tag.short_str), @intFromEnum(Tag.long_str) => {
-                const object = self.allocator.create(Object) catch @panic("allocation failed");
-                object.* = .{
-                    .as = .{
-                        .string = LuaString.create(self.allocator, self.readString()),
-                    },
-                };
-                return .{ .obj = object };
+                const lua_string = LuaString.create(self.allocator, self.readString());
+                return .{ .obj = &lua_string.obj };
             },
             else => @panic("corrupted!"),
         };

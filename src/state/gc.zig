@@ -8,6 +8,7 @@ const LuaTable = @import("lua_table.zig").LuaTable;
 const LuaThread = @import("lua_object.zig").LuaThread;
 const LuaValue = @import("lua_value.zig").LuaValue;
 const Object = @import("lua_object.zig").Object;
+const ObjectKind = @import("lua_object.zig").ObjectKind;
 const UpValue = @import("closure.zig").UpValue;
 const ZigFunction = @import("closure.zig").ZigFunction;
 
@@ -36,8 +37,10 @@ pub const GC = struct {
         var obj = self.objects;
         while (obj) |o| {
             const next = o.next;
-            o.deinit(self.allocator);
-            self.allocator.destroy(o);
+            defer {
+                o.deinit(self.allocator);
+                o.destroy(self.allocator);
+            }
             obj = next;
         }
         self.objects = null;
@@ -49,22 +52,9 @@ pub const GC = struct {
     fn verifyBytesAllocated(self: *GC, comptime T: type) void {
         self.bytes_allocated += @sizeOf(T);
         if (self.bytes_allocated > self.next_gc) {
-            // std.debug.print("gc start, bytes_allocated = {}\n", .{self.bytes_allocated});
+            std.debug.print("gc start, bytes_allocated = {}\n", .{self.bytes_allocated});
             self.collectGarbage();
         }
-    }
-
-    pub fn allocateObject(self: *GC, as: Object.AS) LuaValue {
-        const object = self.allocator.create(Object) catch @panic("allocation failed for object");
-        self.verifyBytesAllocated(Object);
-        object.* = .{
-            .next = self.objects,
-            .marked = false,
-            .as = as,
-        };
-        self.objects = object;
-
-        return .{ .obj = object };
     }
 
     // Factory methods
@@ -72,40 +62,52 @@ pub const GC = struct {
         const lua_table = self.allocator.create(LuaTable) catch @panic("allocation failed for table");
         lua_table.* = LuaTable.init(self.allocator, n_arr, n_rec);
         self.verifyBytesAllocated(LuaTable);
-        return self.allocateObject(.{ .lua_table = lua_table });
+        lua_table.obj.next = self.objects;
+        self.objects = &lua_table.obj;
+        return .{ .obj = lua_table.asObj() };
     }
 
     pub fn createLVString(self: *GC, s: []const u8) LuaValue {
         const lua_string = self.allocator.create(LuaString) catch @panic("allocation failed for string");
         lua_string.* = LuaString.init(self.allocator, s);
         self.verifyBytesAllocated(LuaString);
-        return self.allocateObject(.{ .string = lua_string });
+        lua_string.obj.next = self.objects;
+        self.objects = &lua_string.obj;
+        return .{ .obj = lua_string.asObj() };
     }
 
     pub fn createOpenObjUpValue(self: *GC, val: *LuaValue) LuaValue {
         const upval = UpValue.createOpen(self.allocator, val);
         self.verifyBytesAllocated(UpValue);
-        return self.allocateObject(.{ .upval = upval });
+        upval.obj.next = self.objects;
+        self.objects = &upval.obj;
+        return .{ .obj = upval.asObj() };
     }
 
     pub fn createClosedObjUpValue(self: *GC, val: *const LuaValue) LuaValue {
         const upval = UpValue.createClosed(self.allocator, val.*);
         self.verifyBytesAllocated(UpValue);
-        return self.allocateObject(.{ .upval = upval });
+        upval.obj.next = self.objects;
+        self.objects = &upval.obj;
+        return .{ .obj = upval.asObj() };
     }
 
     pub fn createLVLuaClosure(self: *GC, proto: *binchunk.Prototype) LuaValue {
         const closure = self.allocator.create(Closure) catch @panic("allocation failed for closure");
         closure.* = Closure.initLuaClosure(self.allocator, proto);
         self.verifyBytesAllocated(Closure);
-        return self.allocateObject(.{ .closure = closure });
+        closure.obj.next = self.objects;
+        self.objects = &closure.obj;
+        return .{ .obj = closure.asObj() };
     }
 
     pub fn createLVZigClosure(self: *GC, f: ZigFunction, n_upvals: i32) LuaValue {
         const closure = self.allocator.create(Closure) catch @panic("allocation failed for closure");
         closure.* = Closure.initZigClosure(self.allocator, f, n_upvals);
         self.verifyBytesAllocated(Closure);
-        return self.allocateObject(.{ .closure = closure });
+        closure.obj.next = self.objects;
+        self.objects = &closure.obj;
+        return .{ .obj = closure.asObj() };
     }
 
     fn markRoots(self: *GC) void {
@@ -129,7 +131,7 @@ pub const GC = struct {
                     self.objects = next;
                 }
 
-                switch (curr.*.as) {
+                switch (curr.kind) {
                     .string => self.bytes_allocated -= @sizeOf(LuaString),
                     .lua_table => self.bytes_allocated -= @sizeOf(LuaTable),
                     .closure => self.bytes_allocated -= @sizeOf(Closure),
@@ -137,9 +139,10 @@ pub const GC = struct {
                     .upval => self.bytes_allocated -= @sizeOf(UpValue),
                     .none => {},
                 }
-                self.bytes_allocated -= @sizeOf(Object);
-                curr.deinit(self.allocator);
-                self.allocator.destroy(curr);
+                defer {
+                    curr.deinit(self.allocator);
+                    curr.destroy(self.allocator);
+                }
             }
         }
 

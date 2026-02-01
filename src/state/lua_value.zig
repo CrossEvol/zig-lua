@@ -6,6 +6,7 @@ const Closure = @import("closure.zig").Closure;
 const LuaState = @import("lua_state.zig").LuaState;
 const LuaString = @import("lua_string.zig").LuaString;
 const LuaTable = @import("lua_table.zig").LuaTable;
+const LuaThread = @import("lua_object.zig").LuaThread;
 const Object = @import("lua_object.zig").Object;
 const UpValue = @import("closure.zig").UpValue;
 
@@ -30,10 +31,6 @@ pub const LuaValue = union(LuaValueTag) {
 
     pub const LUA_NIL_REF = &LUA_NIL;
 
-    pub fn deinit(self: *LuaValue, allocator: std.mem.Allocator) void {
-        allocator.destroy(self);
-    }
-
     pub fn isNil(self: *const LuaValue) bool {
         return switch (self.*) {
             .nil => true,
@@ -50,7 +47,7 @@ pub const LuaValue = union(LuaValueTag) {
 
     pub fn isClosure(self: *const LuaValue) bool {
         return switch (self.*) {
-            .obj => |obj| switch (obj.*.as) {
+            .obj => |obj| switch (obj.kind) {
                 .closure => true,
                 else => false,
             },
@@ -60,7 +57,7 @@ pub const LuaValue = union(LuaValueTag) {
 
     pub fn isStr(self: *const LuaValue) bool {
         return switch (self.*) {
-            .obj => |obj| switch (obj.*.as) {
+            .obj => |obj| switch (obj.kind) {
                 .string => true,
                 else => false,
             },
@@ -70,7 +67,7 @@ pub const LuaValue = union(LuaValueTag) {
 
     pub fn isTable(self: *const LuaValue) bool {
         return switch (self.*) {
-            .obj => |obj| switch (obj.*.as) {
+            .obj => |obj| switch (obj.kind) {
                 .lua_table => true,
                 else => false,
             },
@@ -79,27 +76,28 @@ pub const LuaValue = union(LuaValueTag) {
     }
 
     pub fn asUpval(self: *const LuaValue) *UpValue {
-        return self.*.obj.*.as.upval;
+        return UpValue.fromObj(self.obj);
     }
 
     pub fn asClosure(self: *const LuaValue) *Closure {
-        return self.*.obj.*.as.closure;
+        return Closure.fromObj(self.obj);
     }
 
     pub fn asTable(self: *const LuaValue) *LuaTable {
-        return self.*.obj.*.as.lua_table;
+        return LuaTable.fromObj(self.obj);
     }
 
     pub fn asStr(self: *const LuaValue) *LuaString {
-        return self.*.obj.*.as.string;
+        return LuaString.fromObj(self.obj);
+    }
+
+    pub fn asThread(self: *const LuaValue) *LuaThread {
+        return LuaThread.fromObj(self.obj);
     }
 
     pub fn mark(self: *const LuaValue) void {
         switch (self.*) {
-            .obj => |obj| {
-                if (obj.marked) return;
-                obj.mark();
-            },
+            .obj => |obj| obj.markObject(),
             else => {},
         }
     }
@@ -117,12 +115,12 @@ pub const LuaValue = union(LuaValueTag) {
                 const bits: u64 = @bitCast(f);
                 std.hash.autoHash(&hasher, bits);
             },
-            .obj => |obj| switch (obj.*.as) {
-                .string => |s| std.hash.autoHash(&hasher, s.hash()),
-                .lua_table => |t| std.hash.autoHash(&hasher, @intFromPtr(t)),
-                .closure => |c| std.hash.autoHash(&hasher, @intFromPtr(c)),
-                .lua_state => |s| std.hash.autoHash(&hasher, @intFromPtr(s)),
-                .upval => |uv| std.hash.autoHash(&hasher, @intFromPtr(uv)),
+            .obj => |obj| switch (obj.kind) {
+                .string => |_| std.hash.autoHash(&hasher, self.asStr().hash()),
+                .lua_table => |_| std.hash.autoHash(&hasher, @intFromPtr(self.asTable())),
+                .closure => |_| std.hash.autoHash(&hasher, @intFromPtr(self.asClosure())),
+                .lua_state => |_| std.hash.autoHash(&hasher, @intFromPtr(self.asThread())),
+                .upval => |_| std.hash.autoHash(&hasher, @intFromPtr(self.asUpval())),
                 else => unreachable,
             },
         }
@@ -139,11 +137,12 @@ pub const LuaValue = union(LuaValueTag) {
             .bool => |b| b == other.bool,
             .int64 => |i| i == other.int64,
             .float64 => |f| f == other.float64,
-            .obj => |obj| switch (obj.*.as) {
-                .string => |s| s.hash() == other.obj.*.as.string.hash(),
-                .lua_table => |t| t == other.obj.*.as.lua_table,
-                .closure => |c| c == other.obj.*.as.closure,
-                .lua_state => |s| s == other.obj.*.as.lua_state,
+            .obj => |obj| switch (obj.kind) {
+                .string => |_| self.asStr().hash() == other.asStr().hash(),
+                .lua_table => |_| self.asTable() == other.asTable(),
+                .closure => |_| self.asClosure() == other.asClosure(),
+                .lua_state => |_| self.asThread() == other.asThread(),
+                .upval => |_| self.asUpval() == other.asUpval(),
                 else => unreachable,
             },
         };
@@ -155,7 +154,7 @@ pub fn typeOf(val: LuaValue) LuaType {
         .nil => .lua_t_nil,
         .bool => .lua_t_boolean,
         .int64, .float64 => .lua_t_number,
-        .obj => |obj| switch (obj.*.as) {
+        .obj => |obj| switch (obj.kind) {
             .string => .lua_t_string,
             .lua_table => .lua_t_table,
             .closure => .lua_t_function,
@@ -177,8 +176,8 @@ pub fn convertToFloat(val: LuaValue) struct { f64, bool } {
     return switch (val) {
         .int64 => |x| .{ @floatFromInt(x), true },
         .float64 => |x| .{ x, true },
-        .obj => |obj| switch (obj.*.as) {
-            .string => |x| number.parseFloat(x.data()),
+        .obj => |obj| switch (obj.kind) {
+            .string => |_| number.parseFloat(val.asStr().data()),
             else => .{ 0, false },
         },
         else => .{ 0, false },
@@ -190,8 +189,8 @@ pub fn convertToInteger(val: LuaValue) struct { i64, bool } {
     return switch (val) {
         .int64 => |x| .{ x, true },
         .float64 => |x| number.FloatToInteger(x),
-        .obj => |obj| switch (obj.*.as) {
-            .string => |x| _stringToInteger(x.data()),
+        .obj => |obj| switch (obj.kind) {
+            .string => |_| _stringToInteger(val.asStr().data()),
             else => .{ 0, false },
         },
         else => .{ 0, false },
@@ -230,8 +229,9 @@ pub fn getMetatable(allocator: std.mem.Allocator, val: LuaValue, ls: *LuaState) 
 
 pub fn setMetatable(allocator: std.mem.Allocator, val: LuaValue, mt: ?*LuaTable, ls: *LuaState) void {
     switch (val) {
-        .obj => |obj| switch (obj.*.as) {
-            .lua_table => |t| {
+        .obj => |obj| switch (obj.kind) {
+            .lua_table => |_| {
+                const t = val.asTable();
                 t.meta_table = mt;
             },
             else => {
@@ -241,8 +241,7 @@ pub fn setMetatable(allocator: std.mem.Allocator, val: LuaValue, mt: ?*LuaTable,
                 const key = ls.gc.createLVString(mt_s);
 
                 if (mt) |t| {
-                    const lv_table = ls.gc.allocateObject(.{ .lua_table = t });
-                    ls.registry.put(key, lv_table);
+                    ls.registry.put(key, .{ .obj = &t.obj });
                 } else {
                     ls.registry.put(key, LuaValue.LUA_NIL);
                 }
@@ -255,8 +254,7 @@ pub fn setMetatable(allocator: std.mem.Allocator, val: LuaValue, mt: ?*LuaTable,
             const key = ls.gc.createLVString(mt_s);
 
             if (mt) |t| {
-                const lv_table = ls.gc.allocateObject(.{ .lua_table = t });
-                ls.registry.put(key, lv_table);
+                ls.registry.put(key, .{ .obj = &t.obj });
             } else {
                 ls.registry.put(key, LuaValue.LUA_NIL);
             }
@@ -276,9 +274,9 @@ pub fn getMetafield(allocator: std.mem.Allocator, val: LuaValue, fieldName: stri
 pub fn callMetamethod(allocator: std.mem.Allocator, a: LuaValue, b: LuaValue, mmName: string, ls: *LuaState) struct { LuaValue, bool } {
     var mm: LuaValue = undefined;
     mm = getMetafield(allocator, a, mmName, ls);
-    if (std.meta.activeTag(mm) == .nil) {
+    if (mm == .nil) {
         mm = getMetafield(allocator, b, mmName, ls);
-        if (std.meta.activeTag(mm) == .nil) {
+        if (mm == .nil) {
             return .{ LuaValue.LUA_NIL, false };
         }
     }

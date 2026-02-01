@@ -5,10 +5,12 @@ const number = @import("../number/root.zig").number;
 const LuaState = @import("lua_state.zig").LuaState;
 const LuaString = @import("lua_string.zig").LuaString;
 const LuaValue = @import("lua_value.zig").LuaValue;
+const Object = @import("lua_object.zig").Object;
 
 const string = []const u8;
 
 pub const LuaTable = struct {
+    obj: Object,
     allocator: std.mem.Allocator,
     meta_table: ?*LuaTable,
     arr: std.ArrayList(LuaValue),
@@ -19,9 +21,9 @@ pub const LuaTable = struct {
         std.hash_map.default_max_load_percentage,
     ),
 
-    pub fn mark(self: *LuaTable) void {
+    pub fn markEntries(self: *LuaTable) void {
         if (self.meta_table) |mt| {
-            mt.mark();
+            mt.asObj().markObject();
         }
 
         for (self.arr.items) |*item| {
@@ -52,6 +54,7 @@ pub const LuaTable = struct {
         }
 
         return .{
+            .obj = Object.init(.lua_table),
             .allocator = allocator,
             .meta_table = null,
             .arr = arr,
@@ -67,12 +70,22 @@ pub const LuaTable = struct {
         self.map.deinit();
     }
 
+    // Cast from generic object -> LuaTable(**Downcast**)
+    pub fn fromObj(obj: *Object) *LuaTable {
+        return @alignCast(@fieldParentPtr("obj", obj));
+    }
+
+    // Cast from LuaTable -> generic object(**Upcast**)
+    pub fn asObj(self: *LuaTable) *Object {
+        return &self.obj;
+    }
+
     /// Get a value from the table.
     /// Return a clone (new ownership) of the value.
     /// The caller is responsible for calling .deinit() on the returned value.
     pub fn get(self: *LuaTable, key: LuaValue) LuaValue {
         const k1 = _floatToInteger(key);
-        if (std.meta.activeTag(k1) == .int64) {
+        if (k1 == .int64) {
             const idx = k1.int64;
             if (idx >= 1 and idx <= @as(i64, @intCast(self.arr.items.len))) {
                 return self.arr.items[@as(usize, @intCast(idx - 1))];
@@ -89,33 +102,28 @@ pub const LuaTable = struct {
     /// Clones both key and value to ensure the table has full ownership
     /// of its internal data. The caller still owns the passed arguments.
     pub fn put(self: *LuaTable, key: LuaValue, val: LuaValue) void {
-        if (std.meta.activeTag(key) == .nil) {
+        if (key == .nil) {
             @panic("table index is nil!");
         }
-        if (std.meta.activeTag(key) == .float64 and math.isNan(key.float64)) {
+        if (key == .float64 and math.isNan(key.float64)) {
             @panic("table index is NaN!");
         }
 
         const k = _floatToInteger(key);
-        if (std.meta.activeTag(k) == .int64) {
+        if (k == .int64) {
             const idx = k.int64;
             if (idx >= 1) {
                 const arr_len: i64 = @intCast(self.arr.items.len);
                 if (idx <= arr_len) {
                     self.arr.items[@as(usize, @intCast(idx - 1))] = val;
-                    if (idx == arr_len and std.meta.activeTag(val) == .nil) {
+                    if (idx == arr_len and val == .nil) {
                         self._shrinkArray();
                     }
                     return;
                 }
                 if (idx == arr_len + 1) {
-                    if (self.map.fetchRemove(k)) |kv| {
-                        var _key = kv.key;
-                        var _val = kv.value;
-                        _key.deinit(self.allocator);
-                        _val.deinit(self.allocator);
-                    }
-                    if (std.meta.activeTag(val) != .nil) {
+                    if (self.map.fetchRemove(k)) |_| {}
+                    if (val != .nil) {
                         self.arr.append(self.allocator, val) catch @panic("allocation failed!");
                         self._expandArray();
                     }
@@ -123,32 +131,22 @@ pub const LuaTable = struct {
                 }
             }
         }
-        if (std.meta.activeTag(val) != .nil) {
+        if (val != .nil) {
             if (self.map.capacity() == 0) {
                 self.map.ensureTotalCapacity(8) catch @panic("allocation failed!");
             }
             // Check if key already exists and free old value if so
-            if (self.map.fetchRemove(k)) |kv| {
-                var _key = kv.key;
-                var _val = kv.value;
-                _key.deinit(self.allocator);
-                _val.deinit(self.allocator);
-            }
+            if (self.map.fetchRemove(k)) |_| {}
             self.map.put(k, val) catch @panic("table-put failed!");
         } else {
-            if (self.map.fetchRemove(k)) |kv| {
-                var _key = kv.key;
-                var _val = kv.value;
-                _key.deinit(self.allocator);
-                _val.deinit(self.allocator);
-            }
+            if (self.map.fetchRemove(k)) |_| {}
         }
     }
 
     pub fn hasMetaField(self: *LuaTable, fieldName: string, ls: *LuaState) bool {
         if (self.meta_table) |mt| {
             const key = ls.gc.createLVString(fieldName);
-            return std.meta.activeTag(mt.get(key)) != .nil;
+            return mt.get(key) != .nil;
         } else {
             return false;
         }
@@ -159,7 +157,7 @@ pub const LuaTable = struct {
     }
 
     fn _floatToInteger(key: LuaValue) LuaValue {
-        if (std.meta.activeTag(key) == .float64) {
+        if (key == .float64) {
             const i, const ok = number.FloatToInteger(key.float64);
             if (ok) {
                 return .{ .int64 = i };
@@ -174,20 +172,13 @@ pub const LuaTable = struct {
         var i = self.arr.items.len;
         while (i > 0) {
             i -= 1;
-            if (std.meta.activeTag(self.arr.items[i]) != .nil) {
+            if (self.arr.items[i] != .nil) {
                 const new_len = i + 1;
-                for (self.arr.items[new_len..]) |*item| {
-                    item.deinit(self.allocator);
-                }
-
                 self.arr.shrinkRetainingCapacity(new_len);
                 return;
             }
         }
 
-        for (self.arr.items) |*item| {
-            item.deinit(self.allocator);
-        }
         self.arr.clearRetainingCapacity();
     }
 
@@ -203,10 +194,6 @@ pub const LuaTable = struct {
                     self.map.put(kv.key, kv.value) catch @panic("allocation failed!");
                     break;
                 };
-
-                // delete key if succeed
-                var k = kv.key;
-                k.deinit(self.allocator);
 
                 idx += 1;
             } else {

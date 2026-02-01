@@ -23,15 +23,16 @@ pub fn _eq(allocator: std.mem.Allocator, a: LuaValue, b: LuaValue, ls: ?*LuaStat
             .int64 => |y| x == @as(f64, @floatFromInt(y)),
             else => false,
         },
-        .obj => |obj| switch (obj.*.as) {
-            .string => |x| switch (b) {
-                .obj => |b_obj| switch (b_obj.*.as) {
-                    .string => |y| x.hash() == y.hash(),
+        .obj => |obj| switch (obj.kind) {
+            .string => |_| switch (b) {
+                .obj => |b_obj| switch (b_obj.kind) {
+                    .string => |_| a.asStr().hash() == b.asStr().hash(),
                     else => false,
                 },
                 else => false,
             },
-            .lua_table => |x| {
+            .lua_table => |_| {
+                const x = a.asTable();
                 var ok = b.isTable();
                 const y = b.asTable();
                 if (ok and x != y and ls != null) {
@@ -60,10 +61,10 @@ pub fn _lt(allocator: std.mem.Allocator, a: LuaValue, b: LuaValue, ls: ?*LuaStat
             .int64 => |y| x < @as(f64, @floatFromInt(y)),
             else => @panic("comparison error!"),
         },
-        .obj => |obj| switch (obj.*.as) {
-            .string => |x| switch (b) {
-                .obj => |b_obj| switch (b_obj.*.as) {
-                    .string => |y| std.mem.lessThan(u8, x.data(), y.data()),
+        .obj => |obj| switch (obj.kind) {
+            .string => |_| switch (b) {
+                .obj => |b_obj| switch (b_obj.kind) {
+                    .string => |_| std.mem.lessThan(u8, a.asStr().data(), b.asStr().data()),
                     else => @panic("comparison error!"),
                 },
                 else => @panic("comparison error!"),
@@ -100,10 +101,10 @@ pub fn _le(allocator: std.mem.Allocator, a: LuaValue, b: LuaValue, ls: ?*LuaStat
             .int64 => |y| x <= @as(f64, @floatFromInt(y)),
             else => @panic("comparison error!"),
         },
-        .obj => |obj| switch (obj.*.as) {
-            .string => |x| switch (b) {
-                .obj => |b_obj| switch (b_obj.*.as) {
-                    .string => |y| std.mem.order(u8, x.data(), y.data()) != .gt,
+        .obj => |obj| switch (obj.kind) {
+            .string => |_| switch (b) {
+                .obj => |b_obj| switch (b_obj.kind) {
+                    .string => |_| std.mem.order(u8, a.asStr().data(), b.asStr().data()) != .gt,
                     else => @panic("comparison error!"),
                 },
                 else => @panic("comparison error!"),
