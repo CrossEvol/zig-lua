@@ -1,6 +1,7 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
+const LuaError = @import("api/root.zig").Api.LuaError;
 const binchunk = @import("binchunk/root.zig").binchunk;
 const GC = @import("state/gc.zig").GC;
 const LuaValue = @import("state/root.zig").state.LuaValue;
@@ -28,27 +29,27 @@ pub fn main() !void {
     var ls = &lua_state;
     gc.lua_state = ls;
 
-    ls.pushBoolean(true);
-    printStack(ls);
-    ls.pushInteger(10);
-    printStack(ls);
-    ls.pushNil();
-    printStack(ls);
-    ls.pushString("hello");
-    printStack(ls);
-    ls.pushValue(-4);
-    printStack(ls);
-    ls.replace(3);
-    printStack(ls);
-    ls.setTop(6);
-    printStack(ls);
-    ls.remove(-3);
-    printStack(ls);
-    ls.setTop(-5);
-    printStack(ls);
+    try ls.pushBoolean(true);
+    try printStack(ls);
+    try ls.pushInteger(10);
+    try printStack(ls);
+    try ls.pushNil();
+    try printStack(ls);
+    try ls.pushString("hello");
+    try printStack(ls);
+    try ls.pushValue(-4);
+    try printStack(ls);
+    try ls.replace(3);
+    try printStack(ls);
+    try ls.setTop(6);
+    try printStack(ls);
+    try ls.remove(-3);
+    try printStack(ls);
+    try ls.setTop(-5);
+    try printStack(ls);
 }
 
-fn printStack(ls: *LuaState) void {
+fn printStack(ls: *LuaState) LuaError!void {
     const top = ls.getTop();
     for (1..top + 1) |x| {
         const i: i32 = @intCast(x);
@@ -61,7 +62,7 @@ fn printStack(ls: *LuaState) void {
                 std.debug.print("[{d}]", .{ls.toNumber(i)});
             },
             .lua_t_string => {
-                std.debug.print("[\"{s}\"]", .{ls.toString(i).data()});
+                std.debug.print("[\"{s}\"]", .{(try ls.toString(i)).data()});
             },
             else => {
                 std.debug.print("[{s}]", .{ls.typeName(t)});

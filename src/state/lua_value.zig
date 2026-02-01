@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const LuaType = @import("../api/root.zig").Api.LuaType;
+const LuaError = @import("../api/root.zig").Api.LuaError;
 const number = @import("../number/root.zig").number;
 const Closure = @import("closure.zig").Closure;
 const LuaState = @import("lua_state.zig").LuaState;
@@ -271,7 +272,7 @@ pub fn getMetafield(allocator: std.mem.Allocator, val: LuaValue, fieldName: stri
     return LuaValue.LUA_NIL;
 }
 
-pub fn callMetamethod(allocator: std.mem.Allocator, a: LuaValue, b: LuaValue, mmName: string, ls: *LuaState) struct { LuaValue, bool } {
+pub fn callMetamethod(allocator: std.mem.Allocator, a: LuaValue, b: LuaValue, mmName: string, ls: *LuaState) LuaError!struct { LuaValue, bool } {
     var mm: LuaValue = undefined;
     mm = getMetafield(allocator, a, mmName, ls);
     if (mm == .nil) {
@@ -283,12 +284,14 @@ pub fn callMetamethod(allocator: std.mem.Allocator, a: LuaValue, b: LuaValue, mm
 
     if (ls.stack) |stack| {
         stack.check(4);
-        stack.push(mm);
-        stack.push(a);
-        stack.push(b);
-        ls.call(2, 1);
-        return .{ stack.pop(), true };
+        try stack.push(mm);
+        try stack.push(a);
+        try stack.push(b);
+        try ls.call(2, 1);
+        return .{ try stack.pop(), true };
     }
 
-    @panic("callMetamethod failed");
+    // @panic("callMetamethod failed");
+    try ls.pushString("callMetamethod failed");
+    return LuaError.Panic;
 }

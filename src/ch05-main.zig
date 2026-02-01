@@ -4,6 +4,7 @@ const Allocator = std.mem.Allocator;
 const api = @import("api/root.zig").Api;
 const ArithOp = api.ArithOp;
 const CompareOp = api.CompareOp;
+const LuaError = @import("api/root.zig").Api.LuaError;
 const binchunk = @import("binchunk/root.zig").binchunk;
 const GC = @import("state/gc.zig").GC;
 const LuaValue = @import("state/root.zig").state.LuaValue;
@@ -31,25 +32,25 @@ pub fn main() !void {
     var ls = &lua_state;
     gc.lua_state = ls;
 
-    ls.pushInteger(1);
-    ls.pushString("2.0");
-    ls.pushString("3.0");
-    ls.pushNumber(4.0);
-    printStack(ls);
+    try ls.pushInteger(1);
+    try ls.pushString("2.0");
+    try ls.pushString("3.0");
+    try ls.pushNumber(4.0);
+    try printStack(ls);
 
-    ls.arith(ArithOp.lua_op_add);
-    printStack(ls);
-    ls.arith(ArithOp.lua_op_bnot);
-    printStack(ls);
-    ls.len(2);
-    printStack(ls);
-    ls.concat(3);
-    printStack(ls);
-    ls.pushBoolean(ls.compare(1, 2, CompareOp.lua_op_eq));
-    printStack(ls);
+    try ls.arith(ArithOp.lua_op_add);
+    try printStack(ls);
+    try ls.arith(ArithOp.lua_op_bnot);
+    try printStack(ls);
+    try ls.len(2);
+    try printStack(ls);
+    try ls.concat(3);
+    try printStack(ls);
+    try ls.pushBoolean(try ls.compare(1, 2, CompareOp.lua_op_eq));
+    try printStack(ls);
 }
 
-fn printStack(ls: *LuaState) void {
+fn printStack(ls: *LuaState) LuaError!void {
     const top = ls.getTop();
     for (1..top + 1) |x| {
         const i: i32 = @intCast(x);
@@ -62,7 +63,7 @@ fn printStack(ls: *LuaState) void {
                 std.debug.print("[{d}]", .{ls.toNumber(i)});
             },
             .lua_t_string => {
-                std.debug.print("[\"{s}\"]", .{ls.toString(i).data()});
+                std.debug.print("[\"{s}\"]", .{(try ls.toString(i)).data()});
             },
             else => {
                 std.debug.print("[{s}]", .{ls.typeName(t)});

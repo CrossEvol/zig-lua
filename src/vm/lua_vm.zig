@@ -4,6 +4,7 @@ const api = @import("../api/root.zig").Api;
 const ArithOp = api.ArithOp;
 const CompareOp = api.CompareOp;
 const LuaType = api.LuaType;
+const LuaError = @import("../api/root.zig").Api.LuaError;
 const binchunk = @import("../binchunk/root.zig").binchunk;
 const ZigFunction = @import("../state/closure.zig").ZigFunction;
 const GC = @import("../state/gc.zig").GC;
@@ -58,8 +59,8 @@ pub const LuaVM = struct {
 
     //     // [-0, +0, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_rawlen
-    pub fn rawLen(self: *LuaVM, idx: i32) usize {
-        return self.ls.rawLen(idx);
+    pub fn rawLen(self: *LuaVM, idx: i32) LuaError!usize {
+        return try self.ls.rawLen(idx);
     }
 
     // [-0, +0, –]
@@ -172,12 +173,12 @@ pub const LuaVM = struct {
 
     // [-0, +0, m]
     // http://www.lua.org/manual/5.3/manual.html#lua_tostring
-    pub fn toString(self: *LuaVM, idx: i32) *LuaString {
-        return self.ls.toString(idx);
+    pub fn toString(self: *LuaVM, idx: i32) LuaError!*LuaString {
+        return try self.ls.toString(idx);
     }
 
-    pub fn toStringX(self: *LuaVM, idx: i32) struct { *LuaString, bool } {
-        return self.ls.toStringX(idx);
+    pub fn toStringX(self: *LuaVM, idx: i32) LuaError!struct { *LuaString, bool } {
+        return try self.ls.toStringX(idx);
     }
 
     // [-0, +0, –]
@@ -208,26 +209,26 @@ pub const LuaVM = struct {
 
     // [-n, +0, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_pop
-    pub fn pop(self: *LuaVM, n: i32) void {
-        self.ls.pop(n);
+    pub fn pop(self: *LuaVM, n: i32) LuaError!void {
+        try self.ls.pop(n);
     }
 
     // [-0, +0, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_copy
-    pub fn copy(self: *LuaVM, from_idx: i32, to_idx: i32) void {
-        self.ls.copy(from_idx, to_idx);
+    pub fn copy(self: *LuaVM, from_idx: i32, to_idx: i32) LuaError!void {
+        try self.ls.copy(from_idx, to_idx);
     }
 
     // [-0, +1, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_pushvalue
-    pub fn pushValue(self: *LuaVM, idx: i32) void {
-        self.ls.pushValue(idx);
+    pub fn pushValue(self: *LuaVM, idx: i32) LuaError!void {
+        try self.ls.pushValue(idx);
     }
 
     // [-1, +0, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_replace
-    pub fn replace(self: *LuaVM, idx: i32) void {
-        self.ls.replace(idx);
+    pub fn replace(self: *LuaVM, idx: i32) LuaError!void {
+        try self.ls.replace(idx);
     }
 
     // [-1, +1, –]
@@ -238,8 +239,8 @@ pub const LuaVM = struct {
 
     // [-1, +0, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_remove
-    pub fn remove(self: *LuaVM, idx: i32) void {
-        self.ls.remove(idx);
+    pub fn remove(self: *LuaVM, idx: i32) LuaError!void {
+        try self.ls.remove(idx);
     }
 
     // [-0, +0, –]
@@ -250,99 +251,99 @@ pub const LuaVM = struct {
 
     // [-?, +?, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_settop
-    pub fn setTop(self: *LuaVM, idx: i32) void {
-        self.ls.setTop(idx);
+    pub fn setTop(self: *LuaVM, idx: i32) LuaError!void {
+        try self.ls.setTop(idx);
     }
 
     /// **************************  api_push  **************************
 
     // [-0, +1, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_pushnil
-    pub fn pushNil(self: *LuaVM) void {
-        self.ls.pushNil();
+    pub fn pushNil(self: *LuaVM) LuaError!void {
+        try self.ls.pushNil();
     }
 
     // [-0, +1, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_pushboolean
-    pub fn pushBoolean(self: *LuaVM, b: bool) void {
-        self.ls.pushBoolean(b);
+    pub fn pushBoolean(self: *LuaVM, b: bool) LuaError!void {
+        try self.ls.pushBoolean(b);
     }
 
     // [-0, +1, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_pushinteger
-    pub fn pushInteger(self: *LuaVM, n: i64) void {
-        self.ls.pushInteger(n);
+    pub fn pushInteger(self: *LuaVM, n: i64) LuaError!void {
+        try self.ls.pushInteger(n);
     }
 
     // [-0, +1, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_pushnumber
-    pub fn pushNumber(self: *LuaVM, n: f64) void {
-        self.ls.pushNumber(n);
+    pub fn pushNumber(self: *LuaVM, n: f64) LuaError!void {
+        try self.ls.pushNumber(n);
     }
 
     // [-0, +1, m]
     // http://www.lua.org/manual/5.3/manual.html#lua_pushstring
-    pub fn pushString(self: *LuaVM, s: []const u8) void {
-        self.ls.pushString(s);
+    pub fn pushString(self: *LuaVM, s: []const u8) LuaError!void {
+        try self.ls.pushString(s);
     }
 
     // [-0, +1, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_pushcfunction
-    pub fn pushZigFunction(self: *LuaVM, f: ZigFunction) void {
-        self.ls.pushZigFunction(f);
+    pub fn pushZigFunction(self: *LuaVM, f: ZigFunction) LuaError!void {
+        try self.ls.pushZigFunction(f);
     }
 
     // [-n, +1, m]
     // http://www.lua.org/manual/5.3/manual.html#lua_pushcclosure
-    pub fn pushZigClosure(self: *LuaVM, f: ZigFunction, n: i32) void {
-        self.ls.pushZigClosure(f, n);
+    pub fn pushZigClosure(self: *LuaVM, f: ZigFunction, n: i32) LuaError!void {
+        try self.ls.pushZigClosure(f, n);
     }
 
     // [-0, +1, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_pushglobaltable
-    pub fn pushGlobalTable(self: *LuaVM) void {
-        self.ls.pushGlobalTable();
+    pub fn pushGlobalTable(self: *LuaVM) LuaError!void {
+        try self.ls.pushGlobalTable();
     }
 
     /// **************************  api_arith  **************************
 
     // [-(2|1), +1, e]
     // http://www.lua.org/manual/5.3/manual.html#lua_arith
-    pub fn arith(self: *LuaVM, op: ArithOp) void {
-        self.ls.arith(op);
+    pub fn arith(self: *LuaVM, op: ArithOp) LuaError!void {
+        try self.ls.arith(op);
     }
 
     /// **************************  api_compare  **************************
 
     // [-0, +0, e]
     // http://www.lua.org/manual/5.3/manual.html#lua_compare
-    pub fn rawEqual(self: *LuaVM, idx1: i32, idx2: i32) bool {
-        return self.ls.rawEqual(idx1, idx2);
+    pub fn rawEqual(self: *LuaVM, idx1: i32, idx2: i32) LuaError!bool {
+        return try self.ls.rawEqual(idx1, idx2);
     }
 
     // [-0, +0, e]
     // http://www.lua.org/manual/5.3/manual.html#lua_compare
-    pub fn compare(self: *LuaVM, idx1: i32, idx2: i32, op: CompareOp) bool {
-        return self.ls.compare(idx1, idx2, op);
+    pub fn compare(self: *LuaVM, idx1: i32, idx2: i32, op: CompareOp) LuaError!bool {
+        return try self.ls.compare(idx1, idx2, op);
     }
 
     /// **************************  api_misc  **************************
 
     // [-0, +1, e]
     // http://www.lua.org/manual/5.3/manual.html#lua_len
-    pub fn len(self: *LuaVM, idx: i32) void {
-        self.ls.len(idx);
+    pub fn len(self: *LuaVM, idx: i32) LuaError!void {
+        try self.ls.len(idx);
     }
 
     // [-n, +1, e]
     // http://www.lua.org/manual/5.3/manual.html#lua_concat
-    pub fn concat(self: *LuaVM, n: i32) void {
-        self.ls.concat(n);
+    pub fn concat(self: *LuaVM, n: i32) LuaError!void {
+        try self.ls.concat(n);
     }
 
     // [-1, +(2|0), e]
     // http://www.lua.org/manual/5.3/manual.html#lua_next
-    pub fn next(self: *LuaVM, idx: i32) bool {
+    pub fn next(self: *LuaVM, idx: i32) LuaError!bool {
         return self.ls.next(idx);
     }
 
@@ -359,24 +360,24 @@ pub const LuaVM = struct {
         return self.ls.fetch();
     }
 
-    pub fn getConst(self: *LuaVM, idx: i32) void {
-        self.ls.getConst(idx);
+    pub fn getConst(self: *LuaVM, idx: i32) LuaError!void {
+        try self.ls.getConst(idx);
     }
 
-    pub fn getRK(self: *LuaVM, rk: i32) void {
-        self.ls.getRK(rk);
+    pub fn getRK(self: *LuaVM, rk: i32) LuaError!void {
+        try self.ls.getRK(rk);
     }
 
     pub fn registerCount(self: *LuaVM) i32 {
         return self.ls.registerCount();
     }
 
-    pub fn loadVararg(self: *LuaVM, n: i32) void {
-        self.ls.loadVararg(n);
+    pub fn loadVararg(self: *LuaVM, n: i32) LuaError!void {
+        try self.ls.loadVararg(n);
     }
 
-    pub fn loadProto(self: *LuaVM, idx: i32) void {
-        self.ls.loadProto(idx);
+    pub fn loadProto(self: *LuaVM, idx: i32) LuaError!void {
+        try self.ls.loadProto(idx);
     }
 
     pub fn closeUpvalues(self: *LuaVM, a: i32) void {
@@ -387,106 +388,106 @@ pub const LuaVM = struct {
 
     // [-0, +1, m]
     // http://www.lua.org/manual/5.3/manual.html#lua_newtable
-    pub fn newTable(self: *LuaVM) void {
-        self.ls.newTable();
+    pub fn newTable(self: *LuaVM) LuaError!void {
+        try self.ls.newTable();
     }
 
     // [-0, +1, m]
     // http://www.lua.org/manual/5.3/manual.html#lua_createtable
-    pub fn createTable(self: *LuaVM, n_arr: i32, n_rec: i32) void {
-        self.ls.createTable(n_arr, n_rec);
+    pub fn createTable(self: *LuaVM, n_arr: i32, n_rec: i32) LuaError!void {
+        try self.ls.createTable(n_arr, n_rec);
     }
 
     // [-1, +1, e]
     // http://www.lua.org/manual/5.3/manual.html#lua_gettable
-    pub fn getTable(self: *LuaVM, idx: i32) LuaType {
-        return self.ls.GetTable(idx);
+    pub fn getTable(self: *LuaVM, idx: i32) LuaError!LuaType {
+        return try self.ls.GetTable(idx);
     }
 
     // [-0, +1, e]
     // http://www.lua.org/manual/5.3/manual.html#lua_getglobal
-    pub fn getGlobal(self: *LuaVM, name: string) LuaType {
-        return self.ls.getGlobal(name);
+    pub fn getGlobal(self: *LuaVM, name: string) LuaError!LuaType {
+        return try self.ls.getGlobal(name);
     }
 
     // [-0, +(0|1), –]
     // http://www.lua.org/manual/5.3/manual.html#lua_getmetatable
-    pub fn GetMetatable(self: *LuaVM, idx: i32) bool {
-        return self.ls.GetMetatable(idx);
+    pub fn GetMetatable(self: *LuaVM, idx: i32) LuaError!bool {
+        return try self.ls.GetMetatable(idx);
     }
 
     // [-0, +1, e]
     // http://www.lua.org/manual/5.3/manual.html#lua_getfield
-    pub fn getField(self: *LuaVM, idx: i32, k: []const u8) LuaType {
-        return self.ls.getField(idx, k);
+    pub fn getField(self: *LuaVM, idx: i32, k: []const u8) LuaError!LuaType {
+        return try self.ls.getField(idx, k);
     }
 
     // [-0, +1, e]
     // http://www.lua.org/manual/5.3/manual.html#lua_geti
-    pub fn getI(self: *LuaVM, idx: i32, i: i64) LuaType {
-        return self.ls.getI(idx, i);
+    pub fn getI(self: *LuaVM, idx: i32, i: i64) LuaError!LuaType {
+        return try self.ls.getI(idx, i);
     }
 
     // [-1, +1, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_rawget
-    pub fn rawGet(self: *LuaVM, idx: i32) LuaType {
-        return self.ls.rawGet(idx);
+    pub fn rawGet(self: *LuaVM, idx: i32) LuaError!LuaType {
+        return try self.ls.rawGet(idx);
     }
 
     // [-0, +1, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_rawgeti
-    pub fn rawGetI(self: *LuaVM, idx: i32, i: i64) LuaType {
-        return self.ls.rawGetI(idx, i);
+    pub fn rawGetI(self: *LuaVM, idx: i32, i: i64) LuaError!LuaType {
+        return try self.ls.rawGetI(idx, i);
     }
 
     /// **************************  api_set  **************************
 
     // [-2, +0, e]
     // http://www.lua.org/manual/5.3/manual.html#lua_settable
-    pub fn setTable(self: *LuaVM, idx: i32) void {
-        self.ls.SetTable(idx);
+    pub fn setTable(self: *LuaVM, idx: i32) LuaError!void {
+        try self.ls.SetTable(idx);
     }
 
     // [-1, +0, e]
     // http://www.lua.org/manual/5.3/manual.html#lua_setfield
-    pub fn setField(self: *LuaVM, idx: i32, k: []const u8) void {
-        self.ls.setField(idx, k);
+    pub fn setField(self: *LuaVM, idx: i32, k: []const u8) LuaError!void {
+        try self.ls.setField(idx, k);
     }
 
     // [-1, +0, e]
     // http://www.lua.org/manual/5.3/manual.html#lua_seti
-    pub fn setI(self: *LuaVM, idx: i32, i: i64) void {
-        self.ls.setI(idx, i);
+    pub fn setI(self: *LuaVM, idx: i32, i: i64) LuaError!void {
+        try self.ls.setI(idx, i);
     }
 
     // [-2, +0, m]
     // http://www.lua.org/manual/5.3/manual.html#lua_rawset
-    pub fn rawSet(self: *LuaVM, idx: i32) void {
-        self.ls.rawSet(idx);
+    pub fn rawSet(self: *LuaVM, idx: i32) LuaError!void {
+        try self.ls.rawSet(idx);
     }
 
     // [-1, +0, m]
     // http://www.lua.org/manual/5.3/manual.html#lua_rawseti
-    pub fn rawSetI(self: *LuaVM, idx: i32, i: i64) void {
-        self.ls.rawSetI(idx, i);
+    pub fn rawSetI(self: *LuaVM, idx: i32, i: i64) LuaError!void {
+        try self.ls.rawSetI(idx, i);
     }
 
     // [-1, +0, e]
     // http://www.lua.org/manual/5.3/manual.html#lua_setglobal
-    pub fn setGlobal(self: *LuaVM, name: string) void {
-        self.ls.getGlobal(name);
+    pub fn setGlobal(self: *LuaVM, name: string) LuaError!void {
+        try self.ls.getGlobal(name);
     }
 
     // [-0, +0, e]
     // http://www.lua.org/manual/5.3/manual.html#lua_register
-    pub fn register(self: *LuaVM, name: string, f: ZigFunction) void {
-        self.ls.register(name, f);
+    pub fn register(self: *LuaVM, name: string, f: ZigFunction) LuaError!void {
+        try self.ls.register(name, f);
     }
 
     // [-1, +0, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_setmetatable
-    pub fn SetMetatable(self: *LuaVM, idx: i32) void {
-        self.ls.SetMetatable(idx);
+    pub fn SetMetatable(self: *LuaVM, idx: i32) LuaError!void {
+        try self.ls.SetMetatable(idx);
     }
 
     /// **************************  api_closure  **************************
@@ -500,13 +501,13 @@ pub const LuaVM = struct {
 
     // [-0, +1, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_load
-    pub fn load(self: *LuaVM, chunk: []u8, chunk_name: string, mode: string) i32 {
-        return self.ls.load(chunk, chunk_name, mode);
+    pub fn load(self: *LuaVM, chunk: []u8, chunk_name: string, mode: string) LuaError!i32 {
+        return try self.ls.load(chunk, chunk_name, mode);
     }
 
     // [-(nargs+1), +nresults, e]
     // http://www.lua.org/manual/5.3/manual.html#lua_call
-    pub fn call(self: *LuaVM, n_args: i32, n_results: i32) void {
-        self.ls.call(n_args, n_results);
+    pub fn call(self: *LuaVM, n_args: i32, n_results: i32) LuaError!void {
+        try self.ls.call(n_args, n_results);
     }
 };

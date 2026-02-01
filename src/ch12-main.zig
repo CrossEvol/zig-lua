@@ -4,6 +4,7 @@ const Allocator = std.mem.Allocator;
 const api = @import("api/root.zig").Api;
 const ArithOp = api.ArithOp;
 const CompareOp = api.CompareOp;
+const LuaError = @import("api/root.zig").Api.LuaError;
 const binchunk = @import("binchunk/root.zig").binchunk;
 const LuaValue = @import("state/root.zig").state.LuaValue;
 const LuaState = @import("state/root.zig").state.LuaState;
@@ -53,26 +54,26 @@ pub fn main() !void {
 
         var ls = try LuaVM.init(gpa);
         defer ls.deinit();
-        ls.register("print", print);
-        ls.register("getmetatable", getMetatable);
-        ls.register("setmetatable", setMetatable);
-        ls.register("next", next);
-        ls.register("pairs", pairs);
-        ls.register("ipairs", iPairs);
+        try ls.register("print", print);
+        try ls.register("getmetatable", getMetatable);
+        try ls.register("setmetatable", setMetatable);
+        try ls.register("next", next);
+        try ls.register("pairs", pairs);
+        try ls.register("ipairs", iPairs);
 
-        _ = ls.load(data, filename, "b");
-        ls.call(0, 0);
+        _ = try ls.load(data, filename, "b");
+        try ls.call(0, 0);
     }
 }
 
-fn print(ls: *LuaState) i32 {
+fn print(ls: *LuaState) LuaError!i32 {
     const n_args = ls.getTop();
     var i: i32 = 1;
     while (i <= n_args) : (i += 1) {
         if (ls.isBoolean(i)) {
             std.debug.print("{}", .{ls.toBoolean(i)});
         } else if (ls.isString(i)) {
-            std.debug.print("{s}", .{ls.toString(i).data()});
+            std.debug.print("{s}", .{(try ls.toString(i)).data()});
         } else {
             std.debug.print("{s}", .{ls.typeName(ls.Type(i))});
         }
@@ -84,24 +85,24 @@ fn print(ls: *LuaState) i32 {
     return 0;
 }
 
-fn getMetatable(ls: *LuaState) i32 {
-    if (!ls.GetMetatable(1)) {
-        ls.pushNil();
+fn getMetatable(ls: *LuaState) LuaError!i32 {
+    if (!(try ls.GetMetatable(1))) {
+        try ls.pushNil();
     }
     return 1;
 }
 
-fn setMetatable(ls: *LuaState) i32 {
-    ls.SetMetatable(1);
+fn setMetatable(ls: *LuaState) LuaError!i32 {
+    try ls.SetMetatable(1);
     return 1;
 }
 
-fn next(ls: *LuaState) i32 {
-    ls.setTop(2); // create a 2nd argument if there isn't one
-    if (ls.next(1)) {
+fn next(ls: *LuaState) LuaError!i32 {
+    try ls.setTop(2); // create a 2nd argument if there isn't one
+    if (try ls.next(1)) {
         return 2;
     } else {
-        ls.pushNil();
+        try ls.pushNil();
         return 1;
     }
 }
@@ -109,17 +110,17 @@ fn next(ls: *LuaState) i32 {
 // function pairs(t)
 //     return next, t, nil
 // end
-fn pairs(ls: *LuaState) i32 {
-    ls.pushZigFunction(next); // will return generator,
-    ls.pushValue(1); // state,
-    ls.pushNil();
+fn pairs(ls: *LuaState) LuaError!i32 {
+    try ls.pushZigFunction(next); // will return generator,
+    try ls.pushValue(1); // state,
+    try ls.pushNil();
     return 3;
 }
 
-fn iPairs(ls: *LuaState) i32 {
-    ls.pushZigFunction(_iParisAux); // iteration function
-    ls.pushValue(1); // state
-    ls.pushInteger(0); // initial value
+fn iPairs(ls: *LuaState) LuaError!i32 {
+    try ls.pushZigFunction(_iParisAux); // iteration function
+    try ls.pushValue(1); // state
+    try ls.pushInteger(0); // initial value
     return 3;
 }
 
@@ -132,10 +133,10 @@ fn iPairs(ls: *LuaState) i32 {
 //         return nextIdx, nextVal
 //     end
 // end
-fn _iParisAux(ls: *LuaState) i32 {
+fn _iParisAux(ls: *LuaState) LuaError!i32 {
     const i = ls.toInteger(2) + 1;
-    ls.pushInteger(i);
-    if (ls.getI(1, i) == .lua_t_nil) {
+    try ls.pushInteger(i);
+    if ((try ls.getI(1, i)) == .lua_t_nil) {
         return 1;
     } else {
         return 2;

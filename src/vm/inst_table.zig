@@ -1,3 +1,4 @@
+const LuaError = @import("../api/root.zig").Api.LuaError;
 const fpb = @import("fpb.zig");
 const fbToInt = fpb.fbToInt;
 const Instruction = @import("instruction.zig").Instruction;
@@ -7,37 +8,37 @@ const LuaVM = @import("lua_vm.zig").LuaVM;
 const LFIELDS_PER_FLUSH = 50;
 
 // R(A) := {} (size = B,C)
-pub fn newTable(i: Instruction, vm: *LuaVM) void {
+pub fn newTable(i: Instruction, vm: *LuaVM) LuaError!void {
     var a, const b, const c = i.ABC();
     a += 1;
 
-    vm.createTable(fbToInt(b), fbToInt(c));
-    vm.replace(a);
+    try vm.createTable(fbToInt(b), fbToInt(c));
+    try vm.replace(a);
 }
 
 // R(A) := R(B)[RK(C)]
-pub fn getTable(i: Instruction, vm: *LuaVM) void {
+pub fn getTable(i: Instruction, vm: *LuaVM) LuaError!void {
     var a, var b, const c = i.ABC();
     a += 1;
     b += 1;
 
-    vm.getRK(c);
-    _ = vm.getTable(b);
-    vm.replace(a);
+    try vm.getRK(c);
+    _ = try vm.getTable(b);
+    try vm.replace(a);
 }
 
 // R(A)[RK(B)] := RK(C)
-pub fn setTable(i: Instruction, vm: *LuaVM) void {
+pub fn setTable(i: Instruction, vm: *LuaVM) LuaError!void {
     var a, const b, const c = i.ABC();
     a += 1;
 
-    vm.getRK(b);
-    vm.getRK(c);
-    vm.setTable(a);
+    try vm.getRK(b);
+    try vm.getRK(c);
+    try vm.setTable(a);
 }
 
 // R(A)[(C-1)*FPF+i] := R(A+i), 1 <= i <= B
-pub fn setList(i: Instruction, vm: *LuaVM) void {
+pub fn setList(i: Instruction, vm: *LuaVM) LuaError!void {
     var a, var b, var c = i.ABC();
     a += 1;
 
@@ -50,15 +51,15 @@ pub fn setList(i: Instruction, vm: *LuaVM) void {
     const b_is_zero = b == 0;
     if (b_is_zero) {
         b = @as(i32, @intCast(vm.toInteger(-1))) - a - 1;
-        vm.pop(1);
+        try vm.pop(1);
     }
 
     _ = vm.checkStack(1);
     var idx = @as(i64, @intCast(c * LFIELDS_PER_FLUSH));
     for (1..@as(usize, @intCast(b + 1))) |j| {
         idx += 1;
-        vm.pushValue(a + @as(i32, @intCast(j)));
-        vm.setI(a, idx);
+        try vm.pushValue(a + @as(i32, @intCast(j)));
+        try vm.setI(a, idx);
     }
 
     if (b_is_zero) {
@@ -66,11 +67,11 @@ pub fn setList(i: Instruction, vm: *LuaVM) void {
         const end = @as(usize, @intCast(vm.getTop() + 1));
         for (start..end) |j| {
             idx += 1;
-            vm.pushValue(@as(i32, @intCast(j)));
-            vm.setI(a, idx);
+            try vm.pushValue(@as(i32, @intCast(j)));
+            try vm.setI(a, idx);
         }
 
         // clear stack
-        vm.setTop(vm.registerCount());
+        try vm.setTop(vm.registerCount());
     }
 }

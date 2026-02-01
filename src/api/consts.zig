@@ -44,3 +44,12 @@ pub const CompareOp = enum {
     lua_op_lt, // <
     lua_op_le, // <=
 };
+
+pub const LuaError = error{
+    Panic,
+    // add specific error types for objects because Zig errors cannot carry payloads.
+    // The actual error object (string, table, etc.) will be on the Lua stack.
+    // NOTE: Allocation failures (OOM) will continue to use @panic("allocation failed") or return error.OutOfMemory
+    // which will NOT be caught by pCall (or will be propagated and crash main).
+    // For this toy implementation,  assume allocation success or crash on failure.
+};

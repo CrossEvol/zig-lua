@@ -43,7 +43,7 @@ pub fn main() !void {
         var ls = try LuaVM.init(gpa);
         defer ls.deinit();
 
-        _ = ls.load(data, filename, "b");
-        ls.call(0, 0);
+        _ = try ls.load(data, filename, "b");
+        try ls.call(0, 0);
     }
 }

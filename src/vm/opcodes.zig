@@ -1,3 +1,4 @@
+const LuaError = @import("../api/root.zig").Api.LuaError;
 const InstCall = @import("inst_call.zig");
 const self = InstCall.self;
 const call = InstCall.call;
@@ -122,7 +123,7 @@ pub const OpCode = enum {
     OP_EXTRAARG,
 };
 
-const OpCodeAction = *const fn (i: Instruction, vm: *LuaVM) void;
+const OpCodeAction = *const fn (i: Instruction, vm: *LuaVM) LuaError!void;
 
 const OpCodeStruct = struct {
     test_flag: byte, // operator is a test (next instruction must be a jump)

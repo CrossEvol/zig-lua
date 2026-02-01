@@ -1,5 +1,6 @@
 const std = @import("std");
 
+const LuaError = @import("../api/root.zig").Api.LuaError;
 const binchunk = @import("../binchunk/root.zig").binchunk;
 const Closure = @import("closure.zig").Closure;
 const LuaState = @import("lua_state.zig").LuaState;
@@ -86,9 +87,13 @@ pub const LuaStack = struct {
 
     /// Push a value onto the stack.
     /// The stack takes full ownership of the value.
-    pub fn push(self: *LuaStack, val: LuaValue) void {
+    pub fn push(self: *LuaStack, val: LuaValue) LuaError!void {
         if (self.top == self.slots.items.len) {
-            @panic("stack overflow");
+            // @panic("stack overflow");
+            if (self.state) |state| {
+                try state.pushString("stack overflow");
+            }
+            return LuaError.Panic;
         }
         self.slots.items[self.top] = val;
         self.top += 1;
@@ -96,9 +101,13 @@ pub const LuaStack = struct {
 
     /// Pop a value from the stack and return it.
     /// Transfers ownership of the value back to the caller.
-    pub fn pop(self: *LuaStack) LuaValue {
+    pub fn pop(self: *LuaStack) LuaError!LuaValue {
         if (self.top < 1) {
-            @panic("stack underflow!");
+            // @panic("stack underflow!");
+            if (self.state) |state| {
+                try state.pushString("stack underflow!");
+            }
+            return LuaError.Panic;
         }
         self.top -= 1;
         const val = self.slots.items[self.top];
@@ -106,24 +115,24 @@ pub const LuaStack = struct {
         return val;
     }
 
-    pub fn pushN(self: *LuaStack, vals: []LuaValue, n: i32) void {
+    pub fn pushN(self: *LuaStack, vals: []LuaValue, n: i32) LuaError!void {
         const n_vals = vals.len;
         const end: usize = if (n < 0) n_vals else @intCast(n);
 
         for (0..end) |i| {
             if (i < n_vals) {
-                self.push(vals[i]);
+                try self.push(vals[i]);
             } else {
-                self.push(LuaValue.LUA_NIL);
+                try self.push(LuaValue.LUA_NIL);
             }
         }
     }
 
-    pub fn popN(self: *LuaStack, n: i32) []LuaValue {
+    pub fn popN(self: *LuaStack, n: i32) LuaError![]LuaValue {
         const vals = self.allocator.alloc(LuaValue, @as(usize, @intCast(n))) catch @panic("allocation failed");
         var i = n - 1;
         while (i >= 0) : (i -= 1) {
-            vals[@as(usize, @intCast(i))] = self.pop();
+            vals[@as(usize, @intCast(i))] = try self.pop();
         }
         return vals;
     }
@@ -180,7 +189,7 @@ pub const LuaStack = struct {
     /// Set a value at the specified stack index.
     /// The stack takes full ownership of the new value.
     /// The previous value at this index is automatically de-initialized.
-    pub fn set(self: *LuaStack, idx: i32, val: LuaValue) void {
+    pub fn set(self: *LuaStack, idx: i32, val: LuaValue) LuaError!void {
         if (idx < LUA_REGISTRYINDEX) { // upvalues
             const uv_idx: usize = @intCast(LUA_REGISTRYINDEX - idx - 1);
             const c = self.closure;
@@ -201,7 +210,12 @@ pub const LuaStack = struct {
             self.slots.items[absIdx - 1] = val;
             return;
         }
-        @panic("invalid index!");
+
+        // @panic("invalid index!");
+        if (self.state) |state| {
+            try state.pushString("invalid index!");
+        }
+        return LuaError.Panic;
     }
 
     pub fn reverse(self: *LuaStack, from: i32, to: i32) void {

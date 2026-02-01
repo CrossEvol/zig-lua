@@ -4,6 +4,7 @@ const Allocator = std.mem.Allocator;
 const api = @import("api/root.zig").Api;
 const ArithOp = api.ArithOp;
 const CompareOp = api.CompareOp;
+const LuaError = @import("api/root.zig").Api.LuaError;
 const binchunk = @import("binchunk/root.zig").binchunk;
 const LuaValue = @import("state/root.zig").state.LuaValue;
 const LuaState = @import("state/root.zig").state.LuaState;
@@ -42,21 +43,21 @@ pub fn main() !void {
 
         var ls = try LuaVM.init(gpa);
         defer ls.deinit();
-        ls.register("print", print);
+        try ls.register("print", print);
 
-        _ = ls.load(data, filename, "b");
-        ls.call(0, 0);
+        _ = try ls.load(data, filename, "b");
+        try ls.call(0, 0);
     }
 }
 
-fn print(ls: *LuaState) i32 {
+fn print(ls: *LuaState) LuaError!i32 {
     const n_args = ls.getTop();
     var i: i32 = 1;
     while (i <= n_args) : (i += 1) {
         if (ls.isBoolean(i)) {
             std.debug.print("{}", .{ls.toBoolean(i)});
         } else if (ls.isString(i)) {
-            std.debug.print("{s}", .{ls.toString(i).data()});
+            std.debug.print("{s}", .{(try ls.toString(i)).data()});
         } else {
             std.debug.print("{s}", .{ls.typeName(ls.Type(i))});
         }

@@ -1,3 +1,4 @@
+const LuaError = @import("../api/root.zig").Api.LuaError;
 const LuaVM = @import("lua_vm.zig").LuaVM;
 const OpArgMask = @import("opcodes.zig").OpArgMask;
 const opcodes = @import("opcodes.zig").opcodes;
@@ -91,10 +92,10 @@ pub const Instruction = packed struct(u32) {
         return opcodes[op_index].arg_c_mode;
     }
 
-    pub fn execute(self: Instruction, vm: *LuaVM) void {
+    pub fn execute(self: Instruction, vm: *LuaVM) LuaError!void {
         const action = opcodes[@intCast(self.Opcode())].action;
         if (action) |f| {
-            f(self, vm);
+            try f(self, vm);
         } else {
             @panic(self.opName());
         }

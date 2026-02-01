@@ -1,12 +1,13 @@
 const std = @import("std");
 
+const LuaError = @import("../api/root.zig").Api.LuaError;
 const binchunk = @import("../binchunk/root.zig").binchunk;
 const LuaState = @import("lua_state.zig").LuaState;
 const LuaValue = @import("lua_value.zig").LuaValue;
 const Object = @import("lua_object.zig").Object;
 const ObjectKind = @import("lua_object.zig").ObjectKind;
 
-pub const ZigFunction = *const fn (*LuaState) i32;
+pub const ZigFunction = *const fn (*LuaState) LuaError!i32;
 
 pub const UpValue = struct {
     obj: Object,

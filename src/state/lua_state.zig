@@ -7,6 +7,7 @@ const ArithOp = api.ArithOp;
 const CompareOp = api.CompareOp;
 const LUA_RIDX_GLOBALS = api.LUA_RIDX_GLOBALS;
 const LUA_MINSTACK = api.LUA_MINSTACK;
+const LuaError = @import("../api/root.zig").Api.LuaError;
 const binchunk = @import("../binchunk/root.zig").binchunk;
 const number = @import("../number/root.zig").number;
 const state = @import("../state/root.zig").state;
@@ -101,7 +102,7 @@ pub const LuaState = struct {
 
     // [-0, +0, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_rawlen
-    pub fn rawLen(self: *LuaState, idx: i32) usize {
+    pub fn rawLen(self: *LuaState, idx: i32) LuaError!usize {
         if (self.stack) |stack| {
             const val = stack.get(idx);
             return switch (val) {
@@ -114,7 +115,9 @@ pub const LuaState = struct {
             };
         }
 
-        @panic("rawLen failed");
+        // @panic("rawLen failed");
+        self.pushString("rawLen failed");
+        return LuaError.Panic;
     }
 
     // [-0, +0, –]
@@ -263,27 +266,27 @@ pub const LuaState = struct {
 
     // [-0, +0, m]
     // http://www.lua.org/manual/5.3/manual.html#lua_tostring
-    pub fn toString(self: *LuaState, idx: i32) *LuaString {
-        const s, const ok = self.toStringX(idx);
+    pub fn toString(self: *LuaState, idx: i32) LuaError!*LuaString {
+        const s, const ok = try self.toStringX(idx);
         _ = ok;
         return s;
     }
 
-    pub fn toStringX(self: *LuaState, idx: i32) struct { *LuaString, bool } {
+    pub fn toStringX(self: *LuaState, idx: i32) LuaError!struct { *LuaString, bool } {
         const val = self.stack.?.get(idx);
         switch (val) {
             .int64 => |x| {
                 const s = std.fmt.allocPrint(self.allocator, "{d}", .{x}) catch @panic("allocation failed");
                 defer self.allocator.free(s);
                 var lv_str = self.gc.createLVString(s);
-                self.stack.?.set(idx, lv_str);
+                try self.stack.?.set(idx, lv_str);
                 return .{ lv_str.asStr(), true };
             },
             .float64 => |x| {
                 const s = std.fmt.allocPrint(self.allocator, "{d}", .{x}) catch @panic("allocation failed");
                 defer self.allocator.free(s);
                 var lv_str = self.gc.createLVString(s);
-                self.stack.?.set(idx, lv_str);
+                try self.stack.?.set(idx, lv_str);
                 return .{ lv_str.asStr(), true };
             },
             .obj => |obj| switch (obj.kind) {
@@ -336,31 +339,31 @@ pub const LuaState = struct {
 
     // [-n, +0, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_pop
-    pub fn pop(self: *LuaState, n: i32) void {
+    pub fn pop(self: *LuaState, n: i32) LuaError!void {
         for (0..@as(usize, @intCast(n))) |_| {
-            _ = self.stack.?.pop();
+            _ = try self.stack.?.pop();
         }
     }
 
     // [-0, +0, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_copy
-    pub fn copy(self: *LuaState, from_idx: i32, to_idx: i32) void {
+    pub fn copy(self: *LuaState, from_idx: i32, to_idx: i32) LuaError!void {
         const val = self.stack.?.get(from_idx);
-        self.stack.?.set(to_idx, val);
+        try self.stack.?.set(to_idx, val);
     }
 
     // [-0, +1, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_pushvalue
-    pub fn pushValue(self: *LuaState, idx: i32) void {
+    pub fn pushValue(self: *LuaState, idx: i32) LuaError!void {
         const val = self.stack.?.get(idx);
-        self.stack.?.push(val);
+        try self.stack.?.push(val);
     }
 
     // [-1, +0, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_replace
-    pub fn replace(self: *LuaState, idx: i32) void {
-        const val = self.stack.?.pop();
-        self.stack.?.set(idx, val);
+    pub fn replace(self: *LuaState, idx: i32) LuaError!void {
+        const val = try self.stack.?.pop();
+        try self.stack.?.set(idx, val);
     }
 
     // [-1, +1, –]
@@ -371,9 +374,9 @@ pub const LuaState = struct {
 
     // [-1, +0, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_remove
-    pub fn remove(self: *LuaState, idx: i32) void {
+    pub fn remove(self: *LuaState, idx: i32) LuaError!void {
         self.rotate(idx, -1);
-        _ = self.pop(1);
+        _ = try self.pop(1);
     }
 
     // [-0, +0, –]
@@ -389,22 +392,24 @@ pub const LuaState = struct {
 
     // [-?, +?, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_settop
-    pub fn setTop(self: *LuaState, idx: i32) void {
+    pub fn setTop(self: *LuaState, idx: i32) LuaError!void {
         const new_top = self.stack.?.absIndex(idx);
         if (new_top < 0) {
-            @panic("stack underflow!");
+            // @panic("stack underflow!");
+            self.pushString("stack underflow!");
+            return LuaError.Panic;
         }
 
         const n = @as(i32, @intCast(self.stack.?.top)) - @as(i32, @intCast(new_top));
         if (n > 0) {
             var i: i32 = 0;
             while (i < n) : (i += 1) {
-                _ = self.stack.?.pop();
+                _ = try self.stack.?.pop();
             }
         } else if (n < 0) {
             var i: i32 = 0;
             while (i > n) : (i -= 1) {
-                self.stack.?.push(LuaValue.LUA_NIL);
+                try self.stack.?.push(LuaValue.LUA_NIL);
             }
         }
     }
@@ -413,104 +418,107 @@ pub const LuaState = struct {
 
     // [-0, +1, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_pushnil
-    pub fn pushNil(self: *LuaState) void {
-        self.stack.?.push(LuaValue.LUA_NIL);
+    pub fn pushNil(self: *LuaState) LuaError!void {
+        try self.stack.?.push(LuaValue.LUA_NIL);
     }
 
     // [-0, +1, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_pushboolean
-    pub fn pushBoolean(self: *LuaState, b: bool) void {
-        self.stack.?.push(.{ .bool = b });
+    pub fn pushBoolean(self: *LuaState, b: bool) LuaError!void {
+        try self.stack.?.push(.{ .bool = b });
     }
 
     // [-0, +1, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_pushinteger
-    pub fn pushInteger(self: *LuaState, n: i64) void {
-        self.stack.?.push(.{ .int64 = n });
+    pub fn pushInteger(self: *LuaState, n: i64) LuaError!void {
+        try self.stack.?.push(.{ .int64 = n });
     }
 
     // [-0, +1, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_pushnumber
-    pub fn pushNumber(self: *LuaState, n: f64) void {
-        self.stack.?.push(.{ .float64 = n });
+    pub fn pushNumber(self: *LuaState, n: f64) LuaError!void {
+        try self.stack.?.push(.{ .float64 = n });
     }
 
     // [-0, +1, m]
     // http://www.lua.org/manual/5.3/manual.html#lua_pushstring
-    pub fn pushString(self: *LuaState, s: string) void {
+    pub fn pushString(self: *LuaState, s: string) LuaError!void {
         const lv_str = self.gc.createLVString(s);
-        self.stack.?.push(lv_str);
+        try self.stack.?.push(lv_str);
     }
 
     // [-0, +1, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_pushcfunction
-    pub fn pushZigFunction(self: *LuaState, f: ZigFunction) void {
+    pub fn pushZigFunction(self: *LuaState, f: ZigFunction) LuaError!void {
         const lv_closure = self.gc.createLVZigClosure(f, 0);
-        self.stack.?.push(lv_closure);
+        try self.stack.?.push(lv_closure);
     }
 
     // [-n, +1, m]
     // http://www.lua.org/manual/5.3/manual.html#lua_pushcclosure
-    pub fn pushZigClosure(self: *LuaState, f: ZigFunction, n: i32) void {
+    pub fn pushZigClosure(self: *LuaState, f: ZigFunction, n: i32) LuaError!void {
         const lv_closure = self.gc.createLVZigClosure(f, n);
         const closure = lv_closure.asClosure();
         var i = n;
         while (i > 0) : (i -= 1) {
-            const val = self.stack.?.pop();
+            const val = try self.stack.?.pop();
             const val_ref = &val;
             closure.upvals[@as(usize, @intCast(i - 1))] = self.gc.createClosedObjUpValue(val_ref);
         }
-        self.stack.?.push(lv_closure);
+        try self.stack.?.push(lv_closure);
     }
 
     // [-0, +1, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_pushglobaltable
-    pub fn pushGlobalTable(self: *LuaState) void {
+    pub fn pushGlobalTable(self: *LuaState) LuaError!void {
         const global = self.registry.get(.{ .int64 = LUA_RIDX_GLOBALS });
-        self.stack.?.push(global);
+        try self.stack.?.push(global);
     }
 
     /// **************************  api_arith  **************************
 
     // [-(2|1), +1, e]
     // http://www.lua.org/manual/5.3/manual.html#l
-    pub fn arith(self: *LuaState, op: ArithOp) void {
-        const b = self.stack.?.pop();
-        const a = if (op != .lua_op_unm and op != .lua_op_bnot) self.stack.?.pop() else b;
+    pub fn arith(self: *LuaState, op: ArithOp) LuaError!void {
+        const b = try self.stack.?.pop();
+        const a = if (op != .lua_op_unm and op != .lua_op_bnot) try self.stack.?.pop() else b;
 
         const operator = operators[@intFromEnum(op)];
         var result = _arith(a, b, operator);
         if (result != .nil) {
-            self.stack.?.push(result);
+            try self.stack.?.push(result);
             return;
         }
 
         const mm = operator.metamethod;
-        result, const ok = callMetamethod(self.allocator, a, b, mm, self);
+        result, const ok = try callMetamethod(self.allocator, a, b, mm, self);
         if (ok) {
-            self.stack.?.push(result);
+            try self.stack.?.push(result);
             return;
         }
-        @panic("arithmetic error!");
+
+        // @panic("arithmetic error!");
+        try self.pushString("arithmetic error!");
+        return LuaError.Panic;
     }
 
     /// **************************  api_compare  **************************
 
     // [-0, +0, e]
     // http://www.lua.org/manual/5.3/manual.html#lua_compare
-    pub fn rawEqual(self: *LuaState, idx1: i32, idx2: i32) bool {
+    pub fn rawEqual(self: *LuaState, idx1: i32, idx2: i32) LuaError!bool {
         if (!self.stack.?.isValid(idx1) or !self.stack.?.isValid(idx2)) {
             return false;
         }
 
         const a = self.stack.?.get(idx1);
         const b = self.stack.?.get(idx2);
-        return _eq(self.allocator, a, b, null);
+        return try _eq(self.allocator, a, b, null);
     }
 
     // [-0, +0, e]
     // http://www.lua.org/manual/5.3/manual.html#lua_compare
-    pub fn compare(self: *LuaState, idx1: i32, idx2: i32, op: CompareOp) bool {
+    pub fn compare(self: *LuaState, idx1: i32, idx2: i32, op: CompareOp) LuaError!bool {
         if (!self.stack.?.isValid(idx1) or !self.stack.?.isValid(idx2)) {
             return false;
         }
@@ -519,9 +527,9 @@ pub const LuaState = struct {
         const b = self.stack.?.get(idx2);
 
         return switch (op) {
-            .lua_op_eq => _eq(self.allocator, a, b, self),
-            .lua_op_lt => _lt(self.allocator, a, b, self),
-            .lua_op_le => _le(self.allocator, a, b, self),
+            .lua_op_eq => try _eq(self.allocator, a, b, self),
+            .lua_op_lt => try _lt(self.allocator, a, b, self),
+            .lua_op_le => try _le(self.allocator, a, b, self),
         };
     }
 
@@ -529,50 +537,52 @@ pub const LuaState = struct {
 
     // [-0, +1, e]
     // http://www.lua.org/manual/5.3/manual.html#lua_len
-    pub fn len(self: *LuaState, idx: i32) void {
+    pub fn len(self: *LuaState, idx: i32) LuaError!void {
         const val = self.stack.?.get(idx);
 
         if (val.isStr()) {
             const val_str = val.asStr();
-            self.stack.?.push(.{ .int64 = @intCast(val_str.len()) });
+            try self.stack.?.push(.{ .int64 = @intCast(val_str.len()) });
         } else {
-            const result, const ok = callMetamethod(self.allocator, val, val, "__len", self);
+            const result, const ok = try callMetamethod(self.allocator, val, val, "__len", self);
             if (ok) {
-                self.stack.?.push(result);
+                try self.stack.?.push(result);
             } else if (val.isTable()) {
                 const t = val.asTable();
-                self.stack.?.push(.{ .int64 = @intCast(t.len()) });
+                try self.stack.?.push(.{ .int64 = @intCast(t.len()) });
             } else {
-                @panic("length error!");
+                // @panic("length error!");
+                try self.pushString("length error!");
+                return LuaError.Panic;
             }
         }
     }
 
     // [-n, +1, e]
     // http://www.lua.org/manual/5.3/manual.html#lua_concat
-    pub fn concat(self: *LuaState, n: i32) void {
+    pub fn concat(self: *LuaState, n: i32) LuaError!void {
         if (n == 0) {
             const lv_str = self.gc.createLVString("");
-            self.stack.?.push(lv_str);
+            try self.stack.?.push(lv_str);
         } else if (n >= 2) {
             for (1..@as(usize, @intCast(n))) |_| {
                 if (self.isString(-1) and self.isString(-2)) {
-                    const s2 = self.toString(-1);
-                    const s1 = self.toString(-2);
-                    _ = self.stack.?.pop();
-                    _ = self.stack.?.pop();
+                    const s2 = try self.toString(-1);
+                    const s1 = try self.toString(-2);
+                    _ = try self.stack.?.pop();
+                    _ = try self.stack.?.pop();
                     const s = std.mem.concat(self.allocator, u8, &.{ s1.bytes, s2.bytes }) catch @panic("allocation for concatenation failed");
                     defer self.allocator.free(s);
                     const lv_str = self.gc.createLVString(s);
-                    self.stack.?.push(lv_str);
+                    try self.stack.?.push(lv_str);
                     continue;
                 }
 
-                const b = self.stack.?.pop();
-                const a = self.stack.?.pop();
-                const result, const ok = callMetamethod(self.allocator, a, b, "__concat", self);
+                const b = try self.stack.?.pop();
+                const a = try self.stack.?.pop();
+                const result, const ok = try callMetamethod(self.allocator, a, b, "__concat", self);
                 if (ok) {
-                    self.stack.?.push(result);
+                    try self.stack.?.push(result);
                     continue;
                 }
 
@@ -584,21 +594,23 @@ pub const LuaState = struct {
 
     // [-1, +(2|0), e]
     // http://www.lua.org/manual/5.3/manual.html#lua_next
-    pub fn next(self: *LuaState, idx: i32) bool {
+    pub fn next(self: *LuaState, idx: i32) LuaError!bool {
         const val = self.stack.?.get(idx);
         const ok = val.isTable();
         if (ok) {
             const t = val.asTable();
-            const key = self.stack.?.pop();
+            const key = try self.stack.?.pop();
             const next_key = t.nextKey(key);
             if (next_key != .nil) {
-                self.stack.?.push(next_key);
-                self.stack.?.push(t.get(next_key));
+                try self.stack.?.push(next_key);
+                try self.stack.?.push(t.get(next_key));
                 return true;
             }
             return false;
         }
-        @panic("table expected!");
+        // @panic("table expected!");
+        try self.pushString("table expected!");
+        return LuaError.Panic;
     }
 
     /// **************************  api_vm  **************************
@@ -618,16 +630,16 @@ pub const LuaState = struct {
         return i;
     }
 
-    pub fn getConst(self: *LuaState, idx: i32) void {
+    pub fn getConst(self: *LuaState, idx: i32) LuaError!void {
         const c = self.stack.?.closure.?.proto.?.constants[@as(usize, @intCast(idx))];
-        self.stack.?.push(c);
+        try self.stack.?.push(c);
     }
 
-    pub fn getRK(self: *LuaState, rk: i32) void {
+    pub fn getRK(self: *LuaState, rk: i32) LuaError!void {
         if (rk > 0xFF) { // constant
-            self.getConst(rk & 0xFF);
+            try self.getConst(rk & 0xFF);
         } else { // register
-            self.pushValue(rk + 1);
+            try self.pushValue(rk + 1);
         }
     }
 
@@ -635,7 +647,7 @@ pub const LuaState = struct {
         return @intCast(self.stack.?.closure.?.proto.?.max_stack_size);
     }
 
-    pub fn loadVararg(self: *LuaState, n_args: i32) void {
+    pub fn loadVararg(self: *LuaState, n_args: i32) LuaError!void {
         const n: i32 = if (n_args < 0)
             if (self.stack.?.varargs) |varargs| @as(i32, @intCast(varargs.len)) else 0
         else
@@ -643,21 +655,21 @@ pub const LuaState = struct {
 
         self.stack.?.check(n);
         if (self.stack.?.varargs) |varargs| {
-            self.stack.?.pushN(varargs, n);
+            try self.stack.?.pushN(varargs, n);
         } else {
             // No varargs available, push nils
             for (0..@as(usize, @intCast(n))) |_| {
-                self.stack.?.push(LuaValue.LUA_NIL);
+                try self.stack.?.push(LuaValue.LUA_NIL);
             }
         }
     }
 
-    pub fn loadProto(self: *LuaState, idx: i32) void {
+    pub fn loadProto(self: *LuaState, idx: i32) LuaError!void {
         if (self.stack) |stack| {
             const proto = stack.closure.?.proto.?.protos[@as(usize, @intCast(idx))];
             const lv_closure = self.gc.createLVLuaClosure(proto);
             const closure = lv_closure.asClosure();
-            stack.push(lv_closure);
+            try stack.push(lv_closure);
 
             for (0.., proto.upvalues) |i, uv_info| {
                 const uv_idx: usize = @intCast(uv_info.idx);
@@ -707,70 +719,70 @@ pub const LuaState = struct {
 
     // [-0, +1, m]
     // http://www.lua.org/manual/5.3/manual.html#lua_newtable
-    pub fn newTable(self: *LuaState) void {
-        self.createTable(0, 0);
+    pub fn newTable(self: *LuaState) LuaError!void {
+        try self.createTable(0, 0);
     }
 
     // [-0, +1, m]
     // http://www.lua.org/manual/5.3/manual.html#lua_createtable
-    pub fn createTable(self: *LuaState, n_arr: i32, n_rec: i32) void {
+    pub fn createTable(self: *LuaState, n_arr: i32, n_rec: i32) LuaError!void {
         const lv_table = self.gc.createLVTable(n_arr, n_rec);
-        self.stack.?.push(lv_table);
+        try self.stack.?.push(lv_table);
     }
 
     // [-1, +1, e]
     // http://www.lua.org/manual/5.3/manual.html#lua_gettable
-    pub fn GetTable(self: *LuaState, idx: i32) LuaType {
+    pub fn GetTable(self: *LuaState, idx: i32) LuaError!LuaType {
         const t = self.stack.?.get(idx);
-        const k = self.stack.?.pop();
+        const k = try self.stack.?.pop();
         return self.getTable(t, k, false);
     }
 
     // [-0, +1, e]
     // http://www.lua.org/manual/5.3/manual.html#lua_getfield
-    pub fn getField(self: *LuaState, idx: i32, k: string) LuaType {
+    pub fn getField(self: *LuaState, idx: i32, k: string) LuaError!LuaType {
         const t = self.stack.?.get(idx);
         const lv_str = self.gc.createLVString(k);
-        return self.getTable(t, lv_str, false);
+        return try self.getTable(t, lv_str, false);
     }
 
     // [-0, +1, e]
     // http://www.lua.org/manual/5.3/manual.html#lua_geti
-    pub fn getI(self: *LuaState, idx: i32, i: i64) LuaType {
+    pub fn getI(self: *LuaState, idx: i32, i: i64) LuaError!LuaType {
         const t = self.stack.?.get(idx);
-        return self.getTable(t, .{ .int64 = i }, false);
+        return try self.getTable(t, .{ .int64 = i }, false);
     }
 
     // [-1, +1, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_rawget
-    pub fn rawGet(self: *LuaState, idx: i32) LuaType {
+    pub fn rawGet(self: *LuaState, idx: i32) LuaError!LuaType {
         const t = self.stack.?.get(idx);
-        const k = self.stack.?.pop();
-        return self.getTable(t, k, true);
+        const k = try self.stack.?.pop();
+        return try self.getTable(t, k, true);
     }
 
     // [-0, +1, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_rawgeti
-    pub fn rawGetI(self: *LuaState, idx: i32, i: i64) LuaType {
+    pub fn rawGetI(self: *LuaState, idx: i32, i: i64) LuaError!LuaType {
         const t = self.stack.?.get(idx);
-        return self.getTable(t, .{ .int64 = i }, true);
+        return try self.getTable(t, .{ .int64 = i }, true);
     }
 
     // [-0, +1, e]
     // http://www.lua.org/manual/5.3/manual.html#lua_getglobal
-    pub fn getGlobal(self: *LuaState, name: string) LuaType {
+    pub fn getGlobal(self: *LuaState, name: string) LuaError!LuaType {
         const t = self.registry.get(.{ .int64 = LUA_RIDX_GLOBALS });
         const k = self.gc.createLVString(name);
-        return self.getTable(t, k, false);
+        return try self.getTable(t, k, false);
     }
 
     // [-0, +(0|1), –]
     // http://www.lua.org/manual/5.3/manual.html#lua_getmetatable
-    pub fn GetMetatable(self: *LuaState, idx: i32) bool {
+    pub fn GetMetatable(self: *LuaState, idx: i32) LuaError!bool {
         const val = self.stack.?.get(idx);
 
         if (getMetatable(self.allocator, val, self)) |mt| {
-            self.stack.?.push(.{ .obj = &mt.obj });
+            try self.stack.?.push(.{ .obj = &mt.obj });
             return true;
         } else {
             return false;
@@ -778,13 +790,13 @@ pub const LuaState = struct {
     }
 
     // push(t[k])
-    fn getTable(self: *LuaState, t: LuaValue, k: LuaValue, raw: bool) LuaType {
+    fn getTable(self: *LuaState, t: LuaValue, k: LuaValue, raw: bool) LuaError!LuaType {
         const ok = t.isTable();
         if (ok) {
             const tbl = t.asTable();
             const v = tbl.get(k);
             if (raw or !v.isNil() or !tbl.hasMetaField("__index", self)) {
-                self.stack.?.push(v);
+                try self.stack.?.push(v);
                 return typeof(v);
             }
         }
@@ -796,89 +808,99 @@ pub const LuaState = struct {
                     .obj => |obj| switch (obj.kind) {
                         .lua_table => |_| self.getTable(mf, k, false),
                         .closure => |_| {
-                            self.stack.?.push(mf);
-                            self.stack.?.push(t);
-                            self.stack.?.push(k);
-                            self.call(2, 1);
+                            try self.stack.?.push(mf);
+                            try self.stack.?.push(t);
+                            try self.stack.?.push(k);
+                            try self.call(2, 1);
                             const v = self.stack.?.get(-1);
                             return typeof(v);
                         },
-                        else => @panic("index error!"),
+                        else => {
+                            // @panic("index error!");
+                            try self.pushString("index error!");
+                            return LuaError.Panic;
+                        },
                     },
-                    else => @panic("index error!"),
+                    else => {
+                        // @panic("index error!");
+                        try self.pushString("index error!");
+                        return LuaError.Panic;
+                    },
                 };
             }
         }
 
-        @panic("index error!");
+        // @panic("index error!");
+        try self.pushString("index error!");
+        return LuaError.Panic;
     }
 
     /// **************************  api_set  **************************
 
     // [-2, +0, e]
     // http://www.lua.org/manual/5.3/manual.html#lua_settable
-    pub fn SetTable(self: *LuaState, idx: i32) void {
+    pub fn SetTable(self: *LuaState, idx: i32) LuaError!void {
         const t = self.stack.?.get(idx);
-        const v = self.stack.?.pop();
-        const k = self.stack.?.pop();
-        self.setTable(t, k, v, false);
+        const v = try self.stack.?.pop();
+        const k = try self.stack.?.pop();
+        try self.setTable(t, k, v, false);
     }
 
     // [-1, +0, e]
     // http://www.lua.org/manual/5.3/manual.html#lua_setfield
-    pub fn setField(self: *LuaState, idx: i32, k: string) void {
+    pub fn setField(self: *LuaState, idx: i32, k: string) LuaError!void {
         const t = self.stack.?.get(idx);
-        const v = self.stack.?.pop();
+        const v = try self.stack.?.pop();
         const lv_str = self.gc.createLVString(k);
-        self.setTable(t, lv_str, v, false);
+        try self.setTable(t, lv_str, v, false);
     }
 
     // [-1, +0, e]
     // http://www.lua.org/manual/5.3/manual.html#lua_seti
-    pub fn setI(self: *LuaState, idx: i32, i: i64) void {
+    pub fn setI(self: *LuaState, idx: i32, i: i64) LuaError!void {
         const t = self.stack.?.get(idx);
-        const v = self.stack.?.pop();
-        self.setTable(t, .{ .int64 = i }, v, false);
+        const v = try self.stack.?.pop();
+        try self.setTable(t, .{ .int64 = i }, v, false);
     }
 
     // [-2, +0, m]
     // http://www.lua.org/manual/5.3/manual.html#lua_rawset
-    pub fn rawSet(self: *LuaState, idx: i32) void {
+    pub fn rawSet(self: *LuaState, idx: i32) LuaError!void {
         const t = self.stack.?.get(idx);
-        const v = self.stack.?.pop();
-        const k = self.stack.?.pop();
-        self.setTable(t, k, v, true);
+        const v = try self.stack.?.pop();
+        const k = try self.stack.?.pop();
+        try self.setTable(t, k, v, true);
     }
 
     // [-1, +0, m]
     // http://www.lua.org/manual/5.3/manual.html#lua_rawseti
-    pub fn rawSetI(self: *LuaState, idx: i32, i: i64) void {
+    pub fn rawSetI(self: *LuaState, idx: i32, i: i64) LuaError!void {
         const t = self.stack.?.get(idx);
-        const v = self.stack.?.pop();
-        self.setTable(t, .{ .int64 = i }, v, true);
+        const v = try self.stack.?.pop();
+        try self.setTable(t, .{ .int64 = i }, v, true);
     }
 
     // [-1, +0, e]
     // http://www.lua.org/manual/5.3/manual.html#lua_setglobal
-    pub fn setGlobal(self: *LuaState, name: string) void {
+    pub fn setGlobal(self: *LuaState, name: string) LuaError!void {
         const t = self.registry.get(.{ .int64 = LUA_RIDX_GLOBALS });
-        const v = self.stack.?.pop();
+        const v = try self.stack.?.pop();
         const k = self.gc.createLVString(name);
-        self.setTable(t, k, v, false);
+        try self.setTable(t, k, v, false);
     }
 
     // [-0, +0, e]
     // http://www.lua.org/manual/5.3/manual.html#lua_register
-    pub fn register(self: *LuaState, name: string, f: ZigFunction) void {
-        self.pushZigFunction(f);
-        self.setGlobal(name);
+    pub fn register(self: *LuaState, name: string, f: ZigFunction) LuaError!void {
+        try self.pushZigFunction(f);
+        try self.setGlobal(name);
     }
 
     // [-1, +0, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_setmetatable
-    pub fn SetMetatable(self: *LuaState, idx: i32) void {
+    pub fn SetMetatable(self: *LuaState, idx: i32) LuaError!void {
         const val = self.stack.?.get(idx);
-        const mt_val = self.stack.?.pop();
+        const mt_val = try self.stack.?.pop();
 
         switch (mt_val) {
             .nil => |_| setMetatable(self.allocator, val, null, self),
@@ -886,12 +908,16 @@ pub const LuaState = struct {
                 const mt = mt_val.asTable();
                 setMetatable(self.allocator, val, mt, self);
             },
-            else => @panic("table expected!"), // todo
+            else => {
+                // @panic("table expected!");
+                try self.pushString("table expected!");
+                return LuaError.Panic;
+            }, // todo
         }
     }
 
     // t[k]=v
-    fn setTable(self: *LuaState, t: LuaValue, k: LuaValue, v: LuaValue, raw: bool) void {
+    fn setTable(self: *LuaState, t: LuaValue, k: LuaValue, v: LuaValue, raw: bool) LuaError!void {
         const ok = t.isTable();
         if (ok) {
             const tbl = t.asTable();
@@ -908,11 +934,11 @@ pub const LuaState = struct {
                     .obj => |obj| switch (obj.kind) {
                         .lua_table => |_| self.setTable(mf, k, v, false),
                         .closure => |_| {
-                            self.stack.?.push(mf);
-                            self.stack.?.push(t);
-                            self.stack.?.push(k);
-                            self.stack.?.push(v);
-                            self.call(3, 0);
+                            try self.stack.?.push(mf);
+                            try self.stack.?.push(t);
+                            try self.stack.?.push(k);
+                            try self.stack.?.push(v);
+                            try self.call(3, 0);
                             return;
                         },
                         else => @panic("index error!"),
@@ -937,7 +963,7 @@ pub const LuaState = struct {
 
     // [-0, +1, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_load
-    pub fn load(self: *LuaState, chunk: []u8, chunk_name: string, mode: string) i32 {
+    pub fn load(self: *LuaState, chunk: []u8, chunk_name: string, mode: string) LuaError!i32 {
         _ = chunk_name;
         _ = mode;
 
@@ -945,7 +971,7 @@ pub const LuaState = struct {
         var lv_closure = self.gc.createLVLuaClosure(proto);
         const c = lv_closure.asClosure();
 
-        self.stack.?.push(lv_closure);
+        try self.stack.?.push(lv_closure);
         if (proto.upvalues.len > 0) {
             var env = self.registry.get(.{ .int64 = LUA_RIDX_GLOBALS });
             const env_ref = &env;
@@ -958,7 +984,7 @@ pub const LuaState = struct {
 
     // [-(nargs+1), +nresults, e]
     // http://www.lua.org/manual/5.3/manual.html#lua_call
-    pub fn call(self: *LuaState, n_args: i32, n_results: i32) void {
+    pub fn call(self: *LuaState, n_args: i32, n_results: i32) LuaError!void {
         const val = self.stack.?.get(-(n_args + 1));
 
         // first try call closure
@@ -972,7 +998,7 @@ pub const LuaState = struct {
                 ok = mf.isClosure();
                 c = mf.asClosure();
                 if (ok) {
-                    self.stack.?.push(val);
+                    try self.stack.?.push(val);
                     self.insert(-(n_args + 2));
                     new_n_args = n_args + 1;
                 }
@@ -985,16 +1011,16 @@ pub const LuaState = struct {
                     c.proto.?.line_defined,
                     c.proto.?.last_line_defined,
                 });
-                self.callLuaClosure(new_n_args, n_results, c);
+                try self.callLuaClosure(new_n_args, n_results, c);
             } else {
-                self.callZigClosure(new_n_args, n_results, c);
+                try self.callZigClosure(new_n_args, n_results, c);
             }
         } else {
             @panic("not function!");
         }
     }
 
-    fn callZigClosure(self: *LuaState, n_args: i32, n_results: i32, c: *Closure) void {
+    fn callZigClosure(self: *LuaState, n_args: i32, n_results: i32, c: *Closure) LuaError!void {
         // create new lua stack
         const new_stack = self.allocator.create(LuaStack) catch @panic("allocation failed");
         new_stack.* = LuaStack.init(self.allocator, @intCast(n_args + LUA_MINSTACK), self) catch @panic("allocation failed");
@@ -1003,17 +1029,17 @@ pub const LuaState = struct {
         // pass args, pop func
         var args: ?[]LuaValue = null;
         if (n_args > 0) {
-            args = self.stack.?.popN(n_args);
-            new_stack.pushN(args.?, n_args);
+            args = try self.stack.?.popN(n_args);
+            try new_stack.pushN(args.?, n_args);
         }
-        _ = self.stack.?.pop();
+        _ = try self.stack.?.pop();
 
         // run closure
         self.pushLuaStack(new_stack);
-        const r = c.zig_func.?(self);
+        const r = try c.zig_func.?(self);
 
         // get results before popping the stack
-        const results = if (n_results != 0) new_stack.popN(r) else null;
+        const results = if (n_results != 0) try new_stack.popN(r) else null;
 
         self.popLuaStack();
 
@@ -1021,7 +1047,7 @@ pub const LuaState = struct {
         if (results) |res| {
             const n = if (n_results < 0) @as(i32, @intCast(res.len)) else n_results;
             self.stack.?.check(n);
-            self.stack.?.pushN(res, n_results);
+            try self.stack.?.pushN(res, n_results);
             self.allocator.free(res);
         }
 
@@ -1031,7 +1057,7 @@ pub const LuaState = struct {
         }
     }
 
-    fn callLuaClosure(self: *LuaState, n_args: i32, n_results: i32, c: *Closure) void {
+    fn callLuaClosure(self: *LuaState, n_args: i32, n_results: i32, c: *Closure) LuaError!void {
         const n_registers = @as(usize, @intCast(c.proto.?.max_stack_size));
         const n_params = @as(i32, @intCast(c.proto.?.num_params));
         const is_vararg = c.proto.?.is_vararg == 1;
@@ -1042,10 +1068,10 @@ pub const LuaState = struct {
         new_stack.closure = c;
 
         // pass args, pop func
-        const func_and_args = self.stack.?.popN(n_args + 1);
+        const func_and_args = try self.stack.?.popN(n_args + 1);
         defer self.allocator.free(func_and_args);
 
-        new_stack.pushN(func_and_args[1..], n_params);
+        try new_stack.pushN(func_and_args[1..], n_params);
         new_stack.top = n_registers;
         if (n_args > n_params and is_vararg) {
             new_stack.varargs = func_and_args[@as(usize, @intCast(n_params + 1))..];
@@ -1053,7 +1079,7 @@ pub const LuaState = struct {
 
         // run closure
         self.pushLuaStack(new_stack);
-        self.runLuaClosure();
+        try self.runLuaClosure();
 
         // get results before popping the stack
         const results_count =
@@ -1063,7 +1089,7 @@ pub const LuaState = struct {
                 0;
         const results =
             if (n_results != 0 and results_count > 0)
-                new_stack.popN(results_count)
+                try new_stack.popN(results_count)
             else
                 null;
 
@@ -1073,17 +1099,17 @@ pub const LuaState = struct {
         if (results) |res| {
             const n = if (n_results < 0) @as(i32, @intCast(res.len)) else n_results;
             self.stack.?.check(n);
-            self.stack.?.pushN(res, n_results);
+            try self.stack.?.pushN(res, n_results);
             self.allocator.free(res);
         }
     }
 
-    fn runLuaClosure(self: *LuaState) void {
+    fn runLuaClosure(self: *LuaState) LuaError!void {
         var lua_vm_wrapper = LuaVM.of(self);
         const lua_vm = &lua_vm_wrapper;
         outer: while (true) {
             const inst = Instruction.of(lua_vm.fetch());
-            inst.execute(lua_vm);
+            try inst.execute(lua_vm);
             if (inst.Opcode() == @intFromEnum(OpCode.OP_RETURN)) {
                 break :outer;
             }

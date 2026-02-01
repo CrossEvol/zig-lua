@@ -4,6 +4,7 @@ const Allocator = std.mem.Allocator;
 const api = @import("api/root.zig").Api;
 const ArithOp = api.ArithOp;
 const CompareOp = api.CompareOp;
+const LuaError = @import("api/root.zig").Api.LuaError;
 const binchunk = @import("binchunk/root.zig").binchunk;
 const LuaValue = @import("state/root.zig").state.LuaValue;
 const LuaState = @import("state/root.zig").state.LuaState;
@@ -52,21 +53,21 @@ pub fn luaMain(proto: *binchunk.Prototype, allocator: std.mem.Allocator) !void {
     defer ls.deinit();
 
     ls.setClosure(proto);
-    ls.setTop(n_registers);
+    try ls.setTop(n_registers);
     outer: while (true) {
         const pc = ls.pc();
         const inst = Instruction.of(ls.fetch());
         if (inst.Opcode() != @intFromEnum(OpCode.OP_RETURN)) {
-            inst.execute(ls);
+            try inst.execute(ls);
             std.debug.print("[{d:0>2}] {s: <9}", .{ @as(u32, @intCast(pc + 1)), inst.opName() });
-            printStack(ls);
+            try printStack(ls);
         } else {
             break :outer;
         }
     }
 }
 
-fn printStack(ls: *LuaVM) void {
+fn printStack(ls: *LuaVM) LuaError!void {
     const top = ls.getTop();
     for (1..top + 1) |x| {
         const i: i32 = @intCast(x);
@@ -79,7 +80,7 @@ fn printStack(ls: *LuaVM) void {
                 std.debug.print("[{d}]", .{ls.toNumber(i)});
             },
             .lua_t_string => {
-                std.debug.print("[\"{s}\"]", .{ls.toString(i).data()});
+                std.debug.print("[\"{s}\"]", .{(try ls.toString(i)).data()});
             },
             else => {
                 std.debug.print("[{s}]", .{ls.typeName(t)});
