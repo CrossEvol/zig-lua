@@ -220,7 +220,7 @@ pub fn getMetatable(allocator: std.mem.Allocator, val: LuaValue, ls: *LuaState) 
     const mt_s = std.fmt.allocPrint(allocator, "_MT{d}", .{@intFromEnum(typeOf(val))}) catch @panic("allocation failed");
     defer allocator.free(mt_s);
 
-    const key = ls.gc.createLVString(mt_s);
+    const key = ls.gc.createLVString(allocator, mt_s);
     const mt = (ls.registry.get(key));
     if (!mt.isNil()) {
         return mt.asTable();
@@ -239,7 +239,7 @@ pub fn setMetatable(allocator: std.mem.Allocator, val: LuaValue, mt: ?*LuaTable,
                 const mt_s = std.fmt.allocPrint(allocator, "_MT{d}", .{@intFromEnum(typeOf(val))}) catch @panic("allocation failed");
                 defer allocator.free(mt_s);
 
-                const key = ls.gc.createLVString(mt_s);
+                const key = ls.gc.createLVString(allocator, mt_s);
 
                 if (mt) |t| {
                     ls.registry.put(key, .{ .obj = &t.obj });
@@ -252,7 +252,7 @@ pub fn setMetatable(allocator: std.mem.Allocator, val: LuaValue, mt: ?*LuaTable,
             const mt_s = std.fmt.allocPrint(allocator, "_MT{d}", .{@intFromEnum(typeOf(val))}) catch @panic("allocation failed");
             defer allocator.free(mt_s);
 
-            const key = ls.gc.createLVString(mt_s);
+            const key = ls.gc.createLVString(allocator, mt_s);
 
             if (mt) |t| {
                 ls.registry.put(key, .{ .obj = &t.obj });
@@ -265,7 +265,7 @@ pub fn setMetatable(allocator: std.mem.Allocator, val: LuaValue, mt: ?*LuaTable,
 
 pub fn getMetafield(allocator: std.mem.Allocator, val: LuaValue, fieldName: string, ls: *LuaState) LuaValue {
     if (getMetatable(allocator, val, ls)) |mt| {
-        const key = ls.gc.createLVString(fieldName);
+        const key = ls.gc.createLVString(allocator, fieldName);
         return mt.get(key);
     }
 

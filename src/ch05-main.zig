@@ -27,7 +27,7 @@ pub fn main() !void {
         gpa.destroy(gc);
     }
     var lua_state = try LuaState.init(gpa, gc);
-    defer lua_state.deinit();
+    defer lua_state.deinit(gpa);
 
     var ls = &lua_state;
     gc.lua_state = ls;
@@ -44,7 +44,7 @@ pub fn main() !void {
     try printStack(ls);
     try ls.len(2);
     try printStack(ls);
-    try ls.concat(3);
+    try ls.concat(ls.allocator, 3);
     try printStack(ls);
     try ls.pushBoolean(try ls.compare(1, 2, CompareOp.lua_op_eq));
     try printStack(ls);

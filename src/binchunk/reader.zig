@@ -113,13 +113,13 @@ pub const Reader = struct {
         }
     }
 
-    pub fn readProto(self: *Reader, parent_source: string) *Prototype {
+    pub fn readProto(self: *Reader, allocator: std.mem.Allocator, parent_source: string) *Prototype {
         var source = self.readString();
         if (std.mem.eql(u8, source, "")) {
             source = parent_source;
         }
 
-        const proto = self.allocator.create(Prototype) catch @panic("allocation failed");
+        const proto = allocator.create(Prototype) catch @panic("allocation failed");
         proto.* = Prototype{
             .source = source,
             .line_defined = self.readUint32(),
@@ -130,7 +130,7 @@ pub const Reader = struct {
             .code = self.readCode(),
             .constants = self.readConstants(),
             .upvalues = self.readUpvalues(),
-            .protos = self.readProtos(source),
+            .protos = self.readProtos(allocator, source),
             .line_info = self.readLineInfo(),
             .loc_vars = self.readLocVars(),
             .upvalue_names = self.readUpvalueNames(),
@@ -182,11 +182,11 @@ pub const Reader = struct {
         return upvalues.toOwnedSlice(self.allocator) catch @panic("allocation failed");
     }
 
-    pub fn readProtos(self: *Reader, parent_source: string) []const *Prototype {
+    pub fn readProtos(self: *Reader, allocator: std.mem.Allocator, parent_source: string) []const *Prototype {
         const count = self.readUint32();
         var protos = std.ArrayList(*Prototype).initCapacity(self.allocator, count) catch @panic("allocation failed");
         for (0..count) |_| {
-            protos.append(self.allocator, self.readProto(parent_source)) catch @panic("allocation failed");
+            protos.append(self.allocator, self.readProto(allocator, parent_source)) catch @panic("allocation failed");
         }
         return protos.toOwnedSlice(self.allocator) catch @panic("allocation failed");
     }

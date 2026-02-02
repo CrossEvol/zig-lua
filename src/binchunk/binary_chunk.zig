@@ -65,5 +65,5 @@ pub fn undump(data: []const byte) *Prototype {
     var reader = Reader.init(data, allocator);
     reader.checkHeader();
     _ = reader.readByte(); // size_upvalues
-    return reader.readProto("");
+    return reader.readProto(reader.allocator, "");
 }

@@ -53,57 +53,57 @@ pub const GC = struct {
         self.bytes_allocated += @sizeOf(T);
         if (self.bytes_allocated > self.next_gc) {
             // std.debug.print("gc start, bytes_allocated = {}\n", .{self.bytes_allocated});
-            self.collectGarbage();
+            self.collectGarbage(self.allocator);
         }
     }
 
     // Factory methods
-    pub fn createLVTable(self: *GC, n_arr: i32, n_rec: i32) LuaValue {
-        const lua_table = self.allocator.create(LuaTable) catch @panic("allocation failed for table");
-        lua_table.* = LuaTable.init(self.allocator, n_arr, n_rec);
+    pub fn createLVTable(self: *GC, allocator: std.mem.Allocator, n_arr: i32, n_rec: i32) LuaValue {
+        const lua_table = allocator.create(LuaTable) catch @panic("allocation failed for table");
+        lua_table.* = LuaTable.init(allocator, n_arr, n_rec);
         self.verifyBytesAllocated(LuaTable);
         lua_table.obj.next = self.objects;
         self.objects = &lua_table.obj;
         return .{ .obj = lua_table.asObj() };
     }
 
-    pub fn createLVString(self: *GC, s: []const u8) LuaValue {
-        const lua_string = self.allocator.create(LuaString) catch @panic("allocation failed for string");
-        lua_string.* = LuaString.init(self.allocator, s);
+    pub fn createLVString(self: *GC, allocator: std.mem.Allocator, s: []const u8) LuaValue {
+        const lua_string = allocator.create(LuaString) catch @panic("allocation failed for string");
+        lua_string.* = LuaString.init(allocator, s);
         self.verifyBytesAllocated(LuaString);
         lua_string.obj.next = self.objects;
         self.objects = &lua_string.obj;
         return .{ .obj = lua_string.asObj() };
     }
 
-    pub fn createOpenObjUpValue(self: *GC, val: *LuaValue) LuaValue {
-        const upval = UpValue.createOpen(self.allocator, val);
+    pub fn createOpenObjUpValue(self: *GC, allocator: std.mem.Allocator, val: *LuaValue) LuaValue {
+        const upval = UpValue.createOpen(allocator, val);
         self.verifyBytesAllocated(UpValue);
         upval.obj.next = self.objects;
         self.objects = &upval.obj;
         return .{ .obj = upval.asObj() };
     }
 
-    pub fn createClosedObjUpValue(self: *GC, val: *const LuaValue) LuaValue {
-        const upval = UpValue.createClosed(self.allocator, val.*);
+    pub fn createClosedObjUpValue(self: *GC, allocator: std.mem.Allocator, val: *const LuaValue) LuaValue {
+        const upval = UpValue.createClosed(allocator, val.*);
         self.verifyBytesAllocated(UpValue);
         upval.obj.next = self.objects;
         self.objects = &upval.obj;
         return .{ .obj = upval.asObj() };
     }
 
-    pub fn createLVLuaClosure(self: *GC, proto: *binchunk.Prototype) LuaValue {
-        const closure = self.allocator.create(Closure) catch @panic("allocation failed for closure");
-        closure.* = Closure.initLuaClosure(self.allocator, proto);
+    pub fn createLVLuaClosure(self: *GC, allocator: std.mem.Allocator, proto: *binchunk.Prototype) LuaValue {
+        const closure = allocator.create(Closure) catch @panic("allocation failed for closure");
+        closure.* = Closure.initLuaClosure(allocator, proto);
         self.verifyBytesAllocated(Closure);
         closure.obj.next = self.objects;
         self.objects = &closure.obj;
         return .{ .obj = closure.asObj() };
     }
 
-    pub fn createLVZigClosure(self: *GC, f: ZigFunction, n_upvals: i32) LuaValue {
-        const closure = self.allocator.create(Closure) catch @panic("allocation failed for closure");
-        closure.* = Closure.initZigClosure(self.allocator, f, n_upvals);
+    pub fn createLVZigClosure(self: *GC, allocator: std.mem.Allocator, f: ZigFunction, n_upvals: i32) LuaValue {
+        const closure = allocator.create(Closure) catch @panic("allocation failed for closure");
+        closure.* = Closure.initZigClosure(allocator, f, n_upvals);
         self.verifyBytesAllocated(Closure);
         closure.obj.next = self.objects;
         self.objects = &closure.obj;
@@ -114,7 +114,7 @@ pub const GC = struct {
         self.lua_state.?.mark();
     }
 
-    fn sweep(self: *GC) void {
+    fn sweep(self: *GC, allocator: std.mem.Allocator) void {
         var prev: ?*Object = null;
         var object = self.objects;
         while (object) |curr| {
@@ -140,8 +140,8 @@ pub const GC = struct {
                     .none => {},
                 }
                 defer {
-                    curr.deinit(self.allocator);
-                    curr.destroy(self.allocator);
+                    curr.deinit(allocator);
+                    curr.destroy(allocator);
                 }
             }
         }
@@ -150,8 +150,8 @@ pub const GC = struct {
     }
 
     // Core GC methods
-    pub fn collectGarbage(self: *GC) void {
+    pub fn collectGarbage(self: *GC, allocator: std.mem.Allocator) void {
         self.markRoots();
-        self.sweep();
+        self.sweep(allocator);
     }
 };

@@ -24,7 +24,7 @@ pub fn main() !void {
         gpa.destroy(gc);
     }
     var lua_state = try LuaState.init(gpa, gc);
-    defer lua_state.deinit();
+    defer lua_state.deinit(gpa);
 
     var ls = &lua_state;
     gc.lua_state = ls;

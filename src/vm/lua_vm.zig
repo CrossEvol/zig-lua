@@ -50,7 +50,7 @@ pub const LuaVM = struct {
     }
 
     pub fn deinit(self: *LuaVM) void {
-        self.ls.deinit();
+        self.ls.deinit(self.allocator);
         self.allocator.destroy(self.ls);
 
         self.gc.deinit();
@@ -180,7 +180,7 @@ pub const LuaVM = struct {
     }
 
     pub fn toStringX(self: *LuaVM, idx: i32) LuaError!struct { *LuaString, bool } {
-        return try self.ls.toStringX(idx);
+        return try self.ls.toStringX(idx, self.allocator);
     }
 
     // [-0, +0, –]
@@ -340,7 +340,7 @@ pub const LuaVM = struct {
     // [-n, +1, e]
     // http://www.lua.org/manual/5.3/manual.html#lua_concat
     pub fn concat(self: *LuaVM, n: i32) LuaError!void {
-        try self.ls.concat(n);
+        try self.ls.concat(self.allocator, n);
     }
 
     // [-1, +(2|0), e]
