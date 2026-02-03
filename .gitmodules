@@ -1,0 +1,3 @@
+[submodule "libs/PCREz"]
+	path = libs/PCREz
+	url = https://github.com/CrossEvol/PCREz.git
