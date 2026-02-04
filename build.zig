@@ -412,4 +412,51 @@ pub fn build(b: *std.Build) void {
     if (b.args) |args| {
         run_ch13.addArgs(args);
     }
+
+    const pcrez_dep = b.dependency("pcrez", .{
+        .target = target,
+        .optimize = optimize,
+    });
+    const pcrez_mod = pcrez_dep.module("pcrez");
+
+    // Chapter 14 executable
+    const ch14_exe = b.addExecutable(.{
+        .name = "ch14",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/ch14-main.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "pcrez", .module = pcrez_mod },
+            },
+        }),
+    });
+
+    b.installArtifact(ch14_exe);
+
+    const run_ch14 = b.addRunArtifact(ch14_exe);
+    const run_ch14_step = b.step("ch14", "Run chapter 14 application");
+    run_ch14_step.dependOn(&run_ch12.step);
+
+    // Make sure ch14 step also installs the executable
+    run_ch14_step.dependOn(b.getInstallStep());
+
+    if (b.args) |args| {
+        run_ch14.addArgs(args);
+    }
+    // Creates an executable that will run `test` blocks from the executable's
+    // root module. Note that test executables only test one module at a time,
+    // hence why we have to create two separate ones.
+    const ch14_tests = b.addTest(.{
+        .root_module = ch14_exe.root_module,
+    });
+
+    // A run step that will run the second test executable.
+    const run_ch14_tests = b.addRunArtifact(ch14_tests);
+
+    // A top level step for running all tests. dependOn can be called multiple
+    // times and since the two run steps do not depend on one another, this will
+    // make the two of them run in parallel.
+    const ch14_test_step = b.step("ch14-test", "Run tests");
+    ch14_test_step.dependOn(&run_ch14_tests.step);
 }
