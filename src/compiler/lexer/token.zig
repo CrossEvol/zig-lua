@@ -1,7 +1,7 @@
 const std = @import("std");
 
-pub const TokenKind = enum {
-    token_eof, // end-of-file
+pub const TokenKind = enum(u8) {
+    token_eof = 0, // end-of-file
     token_vararg, // ...
     token_sep_semi, // ;
     token_sep_comma, // ,
@@ -60,7 +60,7 @@ pub const TokenKind = enum {
     token_identifier, // identifier
     token_number, // number literal
     token_string, // string literal
-
+    token_unknown_error = 127,
 };
 pub const TOKEN_OP_UNM = TokenKind.token_op_minus; // unary minus
 pub const TOKEN_OP_SUB = TokenKind.token_op_minus; // unary minus

@@ -56,7 +56,7 @@ pub const LexerError = error{
 };
 
 pub const Lexer = struct {
-    arena: std.heap.ArenaAllocator,
+    allocator: std.mem.Allocator,
     chunk: string,
     chunk_name: string,
     line: usize,
@@ -86,7 +86,7 @@ pub const Lexer = struct {
         const re_unicode_escape_seq = regex.Regex.from(re_unicode_escape_pattern, true, allocator) catch @panic("regex compiled error");
 
         return .{
-            .arena = std.heap.ArenaAllocator.init(allocator),
+            .allocator = allocator,
             .chunk = chunk,
             .chunk_name = chunk_name,
             .line = 1,
@@ -106,7 +106,6 @@ pub const Lexer = struct {
     }
 
     pub fn deinit(self: *Lexer) void {
-        self.arena.deinit();
         self.re_newline.deinit();
         self.re_identifier.deinit();
         self.re_number.deinit();
@@ -123,7 +122,7 @@ pub const Lexer = struct {
         }
 
         const current_line = self.line;
-        const line, const kind, const token = self.nextToken();
+        const line, const kind, const token = self.nextToken() catch @panic("look ahead failed");
         self.line = current_line;
         self.next_token_line = line;
         self.next_token_kind = kind;
@@ -131,181 +130,183 @@ pub const Lexer = struct {
         return kind;
     }
 
-    pub fn nextIdentifier(self: *Lexer) struct { line: usize, token: string } {
-        return self.nextTokenOfKind(.token_identifier);
+    /// -> ( line: usize, token: string )
+    pub fn nextIdentifier(self: *Lexer) !struct { usize, string } {
+        return try self.nextTokenOfKind(.token_identifier);
     }
 
-    pub fn nextTokenOfKind(self: *Lexer, kind: TokenKind) LexerError!struct { line: usize, token: string } {
-        const line, const _kind, const token = self.nextToken();
+    /// -> ( line: usize, token: string )
+    pub fn nextTokenOfKind(self: *Lexer, kind: TokenKind) !struct { usize, string } {
+        const line, const _kind, const token = try self.nextToken();
         if (kind != _kind) {
             return self.@"error"(LexerError.SyntaxError, "syntax error near '{s}'", .{token});
         }
-        return .{
-            .line = line,
-            .token = token,
-        };
+        return .{ line, token };
     }
 
-    pub fn nextToken(self: *Lexer) !struct { line: usize, kind: TokenKind, token: string } {
+    /// -> (line: usize, kind: TokenKind, token: string)
+    ///
+    /// -> (line: usize, op: TokenKind, token: string)
+    pub fn nextToken(self: *Lexer) !struct { usize, TokenKind, string } {
         if (self.next_token_line > 0) {
             const line = self.next_token_line;
             const kind = self.next_token_kind;
             const token = self.next_token;
             self.line = self.next_token_line;
             self.next_token_line = 0;
-            return .{ .line = line, .kind = kind, .token = token };
+            return .{ line, kind, token };
         }
 
         try self.skipWhiteSpaces();
         if (self.chunk.len == 0) {
-            return .{ .line = self.line, .kind = .token_eof, .token = "EOF" };
+            return .{ self.line, .token_eof, "EOF" };
         }
 
         switch (self.chunk[0]) {
             ';' => {
                 self.next(1);
-                return .{ .line = self.line, .kind = .token_sep_semi, .token = ";" };
+                return .{ self.line, .token_sep_semi, ";" };
             },
             ',' => {
                 self.next(1);
-                return .{ .line = self.line, .kind = .token_sep_comma, .token = "," };
+                return .{ self.line, .token_sep_comma, "," };
             },
             '(' => {
                 self.next(1);
-                return .{ .line = self.line, .kind = .token_sep_lparen, .token = "(" };
+                return .{ self.line, .token_sep_lparen, "(" };
             },
             ')' => {
                 self.next(1);
-                return .{ .line = self.line, .kind = .token_sep_rparen, .token = ")" };
+                return .{ self.line, .token_sep_rparen, ")" };
             },
             ']' => {
                 self.next(1);
-                return .{ .line = self.line, .kind = .token_sep_rbrack, .token = "]" };
+                return .{ self.line, .token_sep_rbrack, "]" };
             },
             '{' => {
                 self.next(1);
-                return .{ .line = self.line, .kind = .token_sep_lcurly, .token = "{" };
+                return .{ self.line, .token_sep_lcurly, "{" };
             },
             '}' => {
                 self.next(1);
-                return .{ .line = self.line, .kind = .token_sep_rcurly, .token = "}" };
+                return .{ self.line, .token_sep_rcurly, "}" };
             },
             '+' => {
                 self.next(1);
-                return .{ .line = self.line, .kind = .token_op_add, .token = "+" };
+                return .{ self.line, .token_op_add, "+" };
             },
             '-' => {
                 self.next(1);
-                return .{ .line = self.line, .kind = .token_op_minus, .token = "-" };
+                return .{ self.line, .token_op_minus, "-" };
             },
             '*' => {
                 self.next(1);
-                return .{ .line = self.line, .kind = .token_op_mul, .token = "*" };
+                return .{ self.line, .token_op_mul, "*" };
             },
             '^' => {
                 self.next(1);
-                return .{ .line = self.line, .kind = .token_op_pow, .token = "^" };
+                return .{ self.line, .token_op_pow, "^" };
             },
             '%' => {
                 self.next(1);
-                return .{ .line = self.line, .kind = .token_op_mod, .token = "%" };
+                return .{ self.line, .token_op_mod, "%" };
             },
             '&' => {
                 self.next(1);
-                return .{ .line = self.line, .kind = .token_op_band, .token = "&" };
+                return .{ self.line, .token_op_band, "&" };
             },
             '|' => {
                 self.next(1);
-                return .{ .line = self.line, .kind = .token_op_bor, .token = "|" };
+                return .{ self.line, .token_op_bor, "|" };
             },
             '#' => {
                 self.next(1);
-                return .{ .line = self.line, .kind = .token_op_len, .token = "#" };
+                return .{ self.line, .token_op_len, "#" };
             },
             ':' => {
                 if (self.@"test"("::")) {
                     self.next(2);
-                    return .{ .line = self.line, .kind = .token_sep_label, .token = "::" };
+                    return .{ self.line, .token_sep_label, "::" };
                 } else {
                     self.next(1);
-                    return .{ .line = self.line, .kind = .token_sep_colon, .token = ":" };
+                    return .{ self.line, .token_sep_colon, ":" };
                 }
             },
             '/' => {
                 if (self.@"test"("//")) {
                     self.next(2);
-                    return .{ .line = self.line, .kind = .token_op_idiv, .token = "//" };
+                    return .{ self.line, .token_op_idiv, "//" };
                 } else {
                     self.next(1);
-                    return .{ .line = self.line, .kind = .token_op_div, .token = "/" };
+                    return .{ self.line, .token_op_div, "/" };
                 }
             },
             '~' => {
                 if (self.@"test"("~=")) {
                     self.next(2);
-                    return .{ .line = self.line, .kind = .token_op_ne, .token = "~=" };
+                    return .{ self.line, .token_op_ne, "~=" };
                 } else {
                     self.next(1);
-                    return .{ .line = self.line, .kind = .token_op_wave, .token = "~" };
+                    return .{ self.line, .token_op_wave, "~" };
                 }
             },
             '=' => {
                 if (self.@"test"("==")) {
                     self.next(2);
-                    return .{ .line = self.line, .kind = .token_op_eq, .token = "==" };
+                    return .{ self.line, .token_op_eq, "==" };
                 } else {
                     self.next(1);
-                    return .{ .line = self.line, .kind = .token_op_assign, .token = "=" };
+                    return .{ self.line, .token_op_assign, "=" };
                 }
             },
             '<' => {
                 if (self.@"test"("<<")) {
                     self.next(2);
-                    return .{ .line = self.line, .kind = .token_op_shl, .token = "<<" };
+                    return .{ self.line, .token_op_shl, "<<" };
                 } else if (self.@"test"("<=")) {
                     self.next(2);
-                    return .{ .line = self.line, .kind = .token_op_le, .token = "<=" };
+                    return .{ self.line, .token_op_le, "<=" };
                 } else {
                     self.next(1);
-                    return .{ .line = self.line, .kind = .token_op_lt, .token = "<" };
+                    return .{ self.line, .token_op_lt, "<" };
                 }
             },
             '>' => {
                 if (self.@"test"(">>")) {
                     self.next(2);
-                    return .{ .line = self.line, .kind = .token_op_shr, .token = ">>" };
+                    return .{ self.line, .token_op_shr, ">>" };
                 } else if (self.@"test"(">=")) {
                     self.next(2);
-                    return .{ .line = self.line, .kind = .token_op_ge, .token = ">=" };
+                    return .{ self.line, .token_op_ge, ">=" };
                 } else {
                     self.next(1);
-                    return .{ .line = self.line, .kind = .token_op_gt, .token = ">" };
+                    return .{ self.line, .token_op_gt, ">" };
                 }
             },
             '.' => {
                 if (self.@"test"("...")) {
                     self.next(3);
-                    return .{ .line = self.line, .kind = .token_vararg, .token = "..." };
+                    return .{ self.line, .token_vararg, "..." };
                 } else if (self.@"test"("..")) {
                     self.next(2);
-                    return .{ .line = self.line, .kind = .token_op_concat, .token = ".." };
+                    return .{ self.line, .token_op_concat, ".." };
                 } else if (self.chunk.len == 1 or !isDigit(self.chunk[1])) {
                     self.next(1);
-                    return .{ .line = self.line, .kind = .token_sep_dot, .token = "." };
+                    return .{ self.line, .token_sep_dot, "." };
                 }
             },
             '[' => {
                 if (self.@"test"("[[") or self.@"test"("[=")) {
                     const long_string = try self.scanLongString();
-                    return .{ .line = self.line, .kind = .token_string, .token = try self.arena.allocator().dupe(u8, long_string) };
+                    return .{ self.line, .token_string, try self.allocator.dupe(u8, long_string) };
                 } else {
                     self.next(1);
-                    return .{ .line = self.line, .kind = .token_sep_lbrack, .token = "[" };
+                    return .{ self.line, .token_sep_lbrack, "[" };
                 }
             },
             '\'', '"' => {
                 const short_string = try self.scanShortString();
-                return .{ .line = self.line, .kind = .token_string, .token = short_string };
+                return .{ self.line, .token_string, short_string };
             },
             else => {},
         }
@@ -313,14 +314,14 @@ pub const Lexer = struct {
         const c = self.chunk[0];
         if (c == '.' or isDigit(c)) {
             const token = try self.scanNumber();
-            return .{ .line = self.line, .kind = .token_number, .token = token };
+            return .{ self.line, .token_number, token };
         }
         if (c == '_' or isLetter(c)) {
             const token = try self.scanIdentifier();
             if (keywords.get(token)) |kind| {
-                return .{ .line = self.line, .kind = kind, .token = token };
+                return .{ self.line, kind, token };
             } else {
-                return .{ .line = self.line, .kind = .token_identifier, .token = token };
+                return .{ self.line, .token_identifier, token };
             }
         }
 
@@ -389,7 +390,7 @@ pub const Lexer = struct {
         const token = re.findString(self.chunk);
         if (!std.mem.eql(u8, token, "")) {
             self.next(token.len);
-            return self.arena.allocator().dupe(u8, token);
+            return self.allocator.dupe(u8, token);
         }
 
         return LexerError.Unreachable;
@@ -401,7 +402,7 @@ pub const Lexer = struct {
             return self.@"error"(LexerError.InvalidLongStringDelimiter, "invalid long string delimiter near '{s}'", .{self.chunk[0..2]});
         }
 
-        const closing_long_bracket = try strings.Replace(self.arena.allocator(), opening_long_bracket, "[", "]", -1);
+        const closing_long_bracket = try strings.Replace(self.allocator, opening_long_bracket, "[", "]", -1);
         const closing_long_bracket_idx = strings.Index(self.chunk, closing_long_bracket);
         if (closing_long_bracket_idx < 0) {
             return self.@"error"(LexerError.UnfinishedLongStringOrComment, "unfinished long string or comment", .{});
@@ -415,10 +416,10 @@ pub const Lexer = struct {
         const replaced_str = a.allocatedSlice()[0..a.items.len];
         self.line += strings.Count(replaced_str, "\n");
         if (replaced_str.len > 0 and replaced_str[0] == '\n') {
-            return self.arena.allocator().dupe(u8, replaced_str[1..]);
+            return self.allocator.dupe(u8, replaced_str[1..]);
         }
 
-        return self.arena.allocator().dupe(u8, replaced_str);
+        return self.allocator.dupe(u8, replaced_str);
     }
 
     fn scanShortString(self: *Lexer) !string {
@@ -427,11 +428,11 @@ pub const Lexer = struct {
             self.next(str.len);
             const replaced_str = str[1 .. str.len - 1];
             if (strings.Contains(replaced_str, "\\")) {
-                const all_strings = self.re_newline.findAllString(replaced_str, -1, self.arena.allocator());
+                const all_strings = self.re_newline.findAllString(replaced_str, -1, self.allocator);
                 self.line += if (all_strings) |ss| ss.len else 0;
                 return try self.escape(replaced_str);
             }
-            return self.arena.allocator().dupe(u8, replaced_str);
+            return self.allocator.dupe(u8, replaced_str);
         }
 
         return self.@"error"(LexerError.UnfinishedString, "unfinished string", .{});
@@ -439,12 +440,12 @@ pub const Lexer = struct {
 
     fn escape(self: *Lexer, s: string) !string {
         var str = s;
-        var buf = try std.ArrayList(u8).initCapacity(self.arena.allocator(), str.len);
-        errdefer buf.deinit(self.arena.allocator());
+        var buf = try std.ArrayList(u8).initCapacity(self.allocator, str.len);
+        errdefer buf.deinit(self.allocator);
 
         while (str.len > 0) {
             if (str[0] != '\\') {
-                try buf.append(self.arena.allocator(), str[0]);
+                try buf.append(self.allocator, str[0]);
                 str = str[1..];
                 continue;
             }
@@ -455,52 +456,52 @@ pub const Lexer = struct {
 
             switch (str[1]) {
                 'a' => {
-                    try buf.append(self.arena.allocator(), '\x07');
+                    try buf.append(self.allocator, '\x07');
                     str = str[2..];
                     continue;
                 },
                 'b' => {
-                    try buf.append(self.arena.allocator(), '\x08');
+                    try buf.append(self.allocator, '\x08');
                     str = str[2..];
                     continue;
                 },
                 'f' => {
-                    try buf.append(self.arena.allocator(), '\x0C');
+                    try buf.append(self.allocator, '\x0C');
                     str = str[2..];
                     continue;
                 },
                 'n' => {
-                    try buf.append(self.arena.allocator(), '\n');
+                    try buf.append(self.allocator, '\n');
                     str = str[2..];
                     continue;
                 },
                 'r' => {
-                    try buf.append(self.arena.allocator(), '\r');
+                    try buf.append(self.allocator, '\r');
                     str = str[2..];
                     continue;
                 },
                 't' => {
-                    try buf.append(self.arena.allocator(), '\t');
+                    try buf.append(self.allocator, '\t');
                     str = str[2..];
                     continue;
                 },
                 'v' => {
-                    try buf.append(self.arena.allocator(), '\x0B');
+                    try buf.append(self.allocator, '\x0B');
                     str = str[2..];
                     continue;
                 },
                 '"' => {
-                    try buf.append(self.arena.allocator(), '"');
+                    try buf.append(self.allocator, '"');
                     str = str[2..];
                     continue;
                 },
                 '\'' => {
-                    try buf.append(self.arena.allocator(), '\'');
+                    try buf.append(self.allocator, '\'');
                     str = str[2..];
                     continue;
                 },
                 '\\' => {
-                    try buf.append(self.arena.allocator(), '\\');
+                    try buf.append(self.allocator, '\\');
                     str = str[2..];
                     continue;
                 },
@@ -509,7 +510,7 @@ pub const Lexer = struct {
                     if (!std.mem.eql(u8, found, "")) {
                         const d = std.fmt.parseInt(i32, found[1..], 10) catch 0;
                         if (d < 0xFF) {
-                            try buf.append(self.arena.allocator(), @as(u8, @intCast(d)));
+                            try buf.append(self.allocator, @as(u8, @intCast(d)));
                             str = str[found.len..];
                             continue;
                         }
@@ -520,7 +521,7 @@ pub const Lexer = struct {
                     const found = self.re_hex_escape_seq.findString(str);
                     if (!std.mem.eql(u8, found, "")) {
                         const d = std.fmt.parseInt(i32, found[2..], 16) catch 0;
-                        try buf.append(self.arena.allocator(), @as(u8, @intCast(d)));
+                        try buf.append(self.allocator, @as(u8, @intCast(d)));
                         str = str[found.len..];
                         continue;
                     }
@@ -532,7 +533,7 @@ pub const Lexer = struct {
                             if (d <= 0x10FFFF) {
                                 var utf8_buf: [4]u8 = undefined;
                                 const len = std.unicode.utf8Encode(@intCast(d), &utf8_buf) catch unreachable;
-                                try buf.appendSlice(self.arena.allocator(), utf8_buf[0..len]);
+                                try buf.appendSlice(self.allocator, utf8_buf[0..len]);
                                 continue;
                             } else {
                                 return self.@"error"(LexerError.UTF8ValueTooLarge, "UTF-8 value too large near '{s}'", .{found});
@@ -555,7 +556,7 @@ pub const Lexer = struct {
             }
         }
 
-        return buf.toOwnedSlice(self.arena.allocator());
+        return buf.toOwnedSlice(self.allocator);
     }
 
     fn isWhiteSpace(c: u8) bool {

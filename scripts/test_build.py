@@ -45,6 +45,7 @@ def main():
         "ch12": "zig build ch12 && .\\zig-out\\bin\\ch12.exe .\\test_data\\test12.luac",
         "ch13": "zig build ch13 && .\\zig-out\\bin\\ch13.exe .\\test_data\\test13.luac",
         "ch14": "zig build ch14 && .\\zig-out\\bin\\ch14.exe .\\test_data\\test14_lexer.lua",
+        "ch16": "zig build ch16 && .\\zig-out\\bin\\ch16.exe .\\test_data\\hello_world.lua",
     }
 
     # Clear previous outputs and ensure output directory exists

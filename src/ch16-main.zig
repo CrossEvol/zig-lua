@@ -1,5 +1,6 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+const Io = std.Io;
 
 const api = @import("api/root.zig").Api;
 const ArithOp = api.ArithOp;
@@ -9,6 +10,7 @@ const strings = @import("api/strings.zig");
 const binchunk = @import("binchunk/root.zig").binchunk;
 const Lexer = @import("compiler/lexer/lexer.zig").Lexer;
 const TokenKind = @import("compiler/lexer/token.zig").TokenKind;
+const parser = @import("compiler/parser/parser.zig");
 const LuaValue = @import("state/root.zig").state.LuaValue;
 const LuaState = @import("state/root.zig").state.LuaState;
 const vm = @import("vm/root.zig").vm;
@@ -18,26 +20,8 @@ const OpCode = vm.OpCode;
 
 const int = i32;
 
-/// test14_lexer.lua :
-// print("hello") -- short comment
-// print("world") --> another short comment
-// print() --[[ long comment ]]
-// --[===[
-//   another
-//   long comment
-// ]===]
-
-// print("hello, \z
-//        world!") --> hello, world!
-
-// a = 'alo\n123"'
-// a = "alo\n123\""
-// a = '\97lo\10\04923"'
-// a = [[alo
-// 123"]]
-// a = [==[
-// alo
-// 123"]==]
+/// hello_world.lua :
+// print("Hello, World!")
 
 pub fn main() !void {
     var debug_allocator: std.heap.DebugAllocator(.{}) = .init;
@@ -64,47 +48,40 @@ pub fn main() !void {
         var reader = &fr.interface;
         try reader.readSliceAll(data);
 
-        try testLexer(gpa, data, filename);
+        try testParser(gpa, data, filename);
     }
 }
 
 const string = []const u8;
 
-fn testLexer(allocator: std.mem.Allocator, chunk: string, chunk_name: string) !void {
+fn testParser(allocator: std.mem.Allocator, chunk: string, chunk_name: string) !void {
     var arena_allocator = std.heap.ArenaAllocator.init(allocator);
     defer arena_allocator.deinit();
-    var lexer = Lexer.init(arena_allocator.allocator(), chunk, chunk_name);
-    defer lexer.deinit();
-    while (true) {
-        const line, const kind, const token = try lexer.nextToken();
-        std.debug.print("[{d:>2}] [{s:<10}] {s}\n", .{ line, kindToCategory(@intFromEnum(kind)), token });
-        if (kind == .token_eof) {
-            break;
-        }
-    }
+    const arena = arena_allocator.allocator();
+
+    var threaded: std.Io.Threaded = .init(allocator, .{});
+    defer threaded.deinit();
+    const io = threaded.io();
+
+    var stdout_buffer: [1024]u8 = undefined;
+    var stdout_file_writer: Io.File.Writer = .init(.stdout(), io, &stdout_buffer);
+    const stdout_writer = &stdout_file_writer.interface;
+
+    const ast = try parser.parse(arena, chunk, chunk_name);
+
+    try std.json.fmt(&ast, .{ .whitespace = .indent_2 }).format(stdout_writer);
+
+    const buffer = stdout_writer.toArrayList();
+    std.debug.print("{s}", .{buffer.items});
 }
 
-fn kindToCategory(kind: u32) string {
-    if (kind < @intFromEnum(TokenKind.token_sep_semi)) {
-        return "other";
-    }
-    if (kind <= @intFromEnum(TokenKind.token_sep_rcurly)) {
-        return "separator";
-    }
-    if (kind <= @intFromEnum(TokenKind.token_op_not)) {
-        return "operator";
-    }
-    if (kind <= @intFromEnum(TokenKind.token_kw_while)) {
-        return "keyword";
-    }
-    if (kind == @intFromEnum(TokenKind.token_identifier)) {
-        return "identifier";
-    }
-    if (kind == @intFromEnum(TokenKind.token_number)) {
-        return "number";
-    }
-    if (kind == @intFromEnum(TokenKind.token_string)) {
-        return "string";
-    }
-    return "other";
+test "xxx" {
+    const o = @import("compiler/parser/optimizer.zig");
+    const block = @import("compiler/ast/block.zig");
+    const exp = @import("compiler/ast/exp.zig");
+    const stat = @import("compiler/ast/stat.zig");
+    std.debug.print("sizeOf Block: {d}\n", .{@sizeOf(block.Block)});
+    std.debug.print("sizeOf Exp: {d}\n", .{@sizeOf(exp.Exp)});
+    std.debug.print("sizeOf Stat: {d}\n", .{@sizeOf(stat.Stat)});
+    _ = o;
 }
