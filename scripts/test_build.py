@@ -46,6 +46,9 @@ def main():
         "ch13": "zig build ch13 && .\\zig-out\\bin\\ch13.exe .\\test_data\\test13.luac",
         "ch14": "zig build ch14 && .\\zig-out\\bin\\ch14.exe .\\test_data\\test14_lexer.lua",
         "ch16": "zig build ch16 && .\\zig-out\\bin\\ch16.exe .\\test_data\\hello_world.lua",
+        "ch17-hello": "zig build ch17 && .\\zig-out\\bin\\ch17.exe .\\test_data\\hello_world.lua",
+        "ch17-fibo": "zig build ch17 && .\\zig-out\\bin\\ch17.exe .\\test_data\\fibonacci.lua",
+        "ch17-factor": "zig build ch17 && .\\zig-out\\bin\\ch17.exe .\\test_data\\factorial.lua",
     }
 
     # Clear previous outputs and ensure output directory exists

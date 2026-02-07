@@ -8,7 +8,7 @@ const Stat = @import("stat.zig").Stat;
 // retstat ::= return [explist] [‘;’]
 // explist ::= exp {‘,’ exp}
 pub const Block = struct {
-    last_line: usize,
+    last_line: i32,
     stats: []Stat,
     ret_exps: ?[]Exp,
 

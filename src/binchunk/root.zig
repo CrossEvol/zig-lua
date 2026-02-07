@@ -7,5 +7,6 @@ pub const binchunk = struct {
     pub const Upvalue = @import("binary_chunk.zig").Upvalue;
     pub const LocVar = @import("binary_chunk.zig").LocVar;
     pub const undump = @import("binary_chunk.zig").undump;
+    pub const is_binary_chunk = @import("binary_chunk.zig").is_binary_chunk;
     pub const reader = @import("reader.zig");
 };

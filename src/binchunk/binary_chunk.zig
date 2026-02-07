@@ -50,13 +50,32 @@ pub const Prototype = struct {
 pub const Upvalue = struct {
     in_stack: byte,
     idx: byte,
+
+    pub fn init(in_stack: byte, idx: byte) Upvalue {
+        return .{
+            .in_stack = in_stack,
+            .idx = idx,
+        };
+    }
 };
 
 pub const LocVar = struct {
     var_name: string,
     start_pc: u32,
     end_pc: u32,
+
+    pub fn init(var_name: string, start_pc: u32, end_pc: u32) LocVar {
+        return .{
+            .var_name = var_name,
+            .start_pc = start_pc,
+            .end_pc = end_pc,
+        };
+    }
 };
+
+pub fn is_binary_chunk(data: []const byte) bool {
+    return data.len > 4 and std.mem.eql(u8, data[0..4], Header.lua_signature);
+}
 
 pub fn undump(data: []const byte) *Prototype {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);

@@ -54,90 +54,90 @@ pub const Exp = union(enum) {
 };
 
 pub const NilExp = struct {
-    line: usize, // nil
+    line: i32, // nil
 
-    pub fn init(line: usize) NilExp {
+    pub fn init(line: i32) NilExp {
         return .{ .line = line };
     }
 };
 pub const TrueExp = struct {
-    line: usize, // true
+    line: i32, // true
 
-    pub fn init(line: usize) TrueExp {
+    pub fn init(line: i32) TrueExp {
         return .{ .line = line };
     }
 };
 pub const FalseExp = struct {
-    line: usize, // false
+    line: i32, // false
 
-    pub fn init(line: usize) FalseExp {
+    pub fn init(line: i32) FalseExp {
         return .{ .line = line };
     }
 };
 pub const VarargExp = struct {
-    line: usize, // ...
+    line: i32, // ...
 
-    pub fn init(line: usize) VarargExp {
+    pub fn init(line: i32) VarargExp {
         return .{ .line = line };
     }
 };
 
 // Numeral
 pub const IntegerExp = struct {
-    line: usize,
+    line: i32,
     val: i64,
 
-    pub fn init(line: usize, val: i64) IntegerExp {
+    pub fn init(line: i32, val: i64) IntegerExp {
         return .{ .line = line, .val = val };
     }
 };
 
 pub const FloatExp = struct {
-    line: usize,
+    line: i32,
     val: f64,
 
-    pub fn init(line: usize, val: f64) FloatExp {
+    pub fn init(line: i32, val: f64) FloatExp {
         return .{ .line = line, .val = val };
     }
 };
 
 // LiteralString
 pub const StringExp = struct {
-    line: usize,
+    line: i32,
     str: string,
 
-    pub fn init(line: usize, str: string) StringExp {
+    pub fn init(line: i32, str: string) StringExp {
         return .{ .line = line, .str = str };
     }
 };
 
 // unop exp
 pub const UnopExp = struct {
-    line: usize, // line of operator
+    line: i32, // line of operator
     op: TokenKind, // operator
     exp: Exp,
 
-    pub fn init(line: usize, op: TokenKind, exp: Exp) UnopExp {
+    pub fn init(line: i32, op: TokenKind, exp: Exp) UnopExp {
         return .{ .line = line, .op = op, .exp = exp };
     }
 };
 // exp1 op exp2
 pub const BinopExp = struct {
-    line: usize, // line of operator
+    line: i32, // line of operator
     op: TokenKind, // operator
     exp1: Exp,
     exp2: Exp,
 
-    pub fn init(line: usize, op: TokenKind, exp1: Exp, exp2: Exp) BinopExp {
+    pub fn init(line: i32, op: TokenKind, exp1: Exp, exp2: Exp) BinopExp {
         return .{ .line = line, .op = op, .exp1 = exp1, .exp2 = exp2 };
     }
 };
 
 pub const ConcatExp = struct {
-    line: usize, // line of last ..
+    line: i32, // line of last ..
     exps: []Exp,
 
-    pub fn init(line: usize, exps: []Exp) ConcatExp {
+    pub fn init(line: i32, exps: []Exp) ConcatExp {
         return .{ .line = line, .exps = exps };
     }
 };
@@ -147,12 +147,12 @@ pub const ConcatExp = struct {
 // field ::= ‘[’ exp ‘]’ ‘=’ exp | Name ‘=’ exp | exp
 // fieldsep ::= ‘,’ | ‘;’
 pub const TableConstructorExp = struct {
-    line: usize, // line of `{` ?
-    last_line: usize, // line of `}`
+    line: i32, // line of `{` ?
+    last_line: i32, // line of `}`
     key_exps: []?Exp,
     val_exps: []?Exp,
 
-    pub fn init(line: usize, last_line: usize, key_exps: []?Exp, val_exps: []?Exp) TableConstructorExp {
+    pub fn init(line: i32, last_line: i32, key_exps: []?Exp, val_exps: []?Exp) TableConstructorExp {
         return .{ .line = line, .last_line = last_line, .key_exps = key_exps, .val_exps = val_exps };
     }
 };
@@ -162,13 +162,13 @@ pub const TableConstructorExp = struct {
 // parlist ::= namelist [‘,’ ‘...’] | ‘...’
 // namelist ::= Name {‘,’ Name}
 pub const FuncDefExp = struct {
-    line: usize,
-    last_line: usize,
+    line: i32,
+    last_line: i32,
     par_list: ?[]string,
     is_vararg: bool,
     block: Block,
 
-    pub fn init(line: usize, last_line: usize, par_list: ?[]string, is_vararg: bool, block: Block) FuncDefExp {
+    pub fn init(line: i32, last_line: i32, par_list: ?[]string, is_vararg: bool, block: Block) FuncDefExp {
         return .{ .line = line, .last_line = last_line, .par_list = par_list, .is_vararg = is_vararg, .block = block };
     }
 };
@@ -181,10 +181,10 @@ pub const FuncDefExp = struct {
 //               prefixexp args
 
 pub const NameExp = struct {
-    line: usize,
+    line: i32,
     name: string,
 
-    pub fn init(line: usize, name: string) NameExp {
+    pub fn init(line: i32, name: string) NameExp {
         return .{ .line = line, .name = name };
     }
 };
@@ -198,23 +198,23 @@ pub const ParensExp = struct {
 };
 
 pub const TableAccessExp = struct {
-    last_line: usize, // line of `]` ?
+    last_line: i32, // line of `]` ?
     prefix_exp: Exp,
     key_exp: Exp,
 
-    pub fn init(last_line: usize, prefix_exp: Exp, key_exp: Exp) TableAccessExp {
+    pub fn init(last_line: i32, prefix_exp: Exp, key_exp: Exp) TableAccessExp {
         return .{ .last_line = last_line, .prefix_exp = prefix_exp, .key_exp = key_exp };
     }
 };
 
 pub const FuncCallExp = struct {
-    line: usize, // line of `(` ?
-    last_line: usize, // line of ')'
+    line: i32, // line of `(` ?
+    last_line: i32, // line of ')'
     prefix_exp: Exp,
     name_exp: ?StringExp,
     args: []Exp,
 
-    pub fn init(line: usize, last_line: usize, prefix_exp: Exp, name_exp: ?StringExp, args: []Exp) FuncCallExp {
+    pub fn init(line: i32, last_line: i32, prefix_exp: Exp, name_exp: ?StringExp, args: []Exp) FuncCallExp {
         return .{ .line = line, .last_line = last_line, .prefix_exp = prefix_exp, .name_exp = name_exp, .args = args };
     }
 };

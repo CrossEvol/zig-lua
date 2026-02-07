@@ -10,6 +10,7 @@ const LUA_RIDX_GLOBALS = api.LUA_RIDX_GLOBALS;
 const LUA_MINSTACK = api.LUA_MINSTACK;
 const LuaError = @import("../api/root.zig").Api.LuaError;
 const binchunk = @import("../binchunk/root.zig").binchunk;
+const compiler = @import("../compiler/compiler.zig");
 const number = @import("../number/root.zig").number;
 const state = @import("../state/root.zig").state;
 const operators = state.operators;
@@ -43,10 +44,11 @@ const string = []const u8;
 
 pub const LuaState = struct {
     registry: *LuaTable, // borrow from gc
-    stack: ?*LuaStack, // own by self? TODO:
+    stack: ?*LuaStack, // referenced
 
     // memory management
     allocator: std.mem.Allocator,
+    arena: std.heap.ArenaAllocator,
     gc: *GC,
 
     pub fn init(allocator: std.mem.Allocator, gc: *GC) !LuaState {
@@ -59,6 +61,7 @@ pub const LuaState = struct {
             .registry = registry,
             .stack = null,
             .allocator = allocator,
+            .arena = std.heap.ArenaAllocator.init(allocator),
             .gc = gc,
         };
 
@@ -74,6 +77,7 @@ pub const LuaState = struct {
             s.deinit();
             allocator.destroy(s);
         }
+        self.arena.deinit();
     }
 
     pub fn mark(self: *const LuaState) void {
@@ -985,10 +989,18 @@ pub const LuaState = struct {
     // [-0, +1, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_load
     pub fn load(self: *LuaState, chunk: []u8, chunk_name: string, mode: string) LuaError!i32 {
-        _ = chunk_name;
         _ = mode;
 
-        const proto = binchunk.undump(chunk);
+        var proto: *binchunk.Prototype = undefined;
+        if (binchunk.is_binary_chunk(chunk)) {
+            proto = binchunk.undump(chunk);
+        } else {
+            proto = compiler.Compile(self.arena.allocator(), chunk, chunk_name) catch {
+                std.debug.print("Compiler error!", .{});
+                return LuaError.Panic;
+            };
+        }
+
         var lv_closure = self.gc.createLVLuaClosure(self.allocator, proto);
         const c = lv_closure.asClosure();
 
@@ -1027,11 +1039,11 @@ pub const LuaState = struct {
         }
         if (ok) {
             if (c.proto != null) {
-                std.debug.print("call {s}<{d},{d}>\n", .{
-                    c.proto.?.source,
-                    c.proto.?.line_defined,
-                    c.proto.?.last_line_defined,
-                });
+                // std.debug.print("call {s}<{d},{d}>\n", .{
+                //     c.proto.?.source,
+                //     c.proto.?.line_defined,
+                //     c.proto.?.last_line_defined,
+                // });
                 try self.callLuaClosure(self.allocator, new_n_args, n_results, c);
             } else {
                 try self.callZigClosure(self.allocator, new_n_args, n_results, c);

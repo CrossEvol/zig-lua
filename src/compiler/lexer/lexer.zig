@@ -59,11 +59,11 @@ pub const Lexer = struct {
     allocator: std.mem.Allocator,
     chunk: string,
     chunk_name: string,
-    line: usize,
+    line: i32,
     pos: usize,
     next_token: string,
     next_token_kind: TokenKind,
-    next_token_line: usize,
+    next_token_line: i32,
 
     // Compiled regexes
     re_newline: regex.Regex,
@@ -130,13 +130,13 @@ pub const Lexer = struct {
         return kind;
     }
 
-    /// -> ( line: usize, token: string )
-    pub fn nextIdentifier(self: *Lexer) !struct { usize, string } {
+    /// -> ( line: i32, token: string )
+    pub fn nextIdentifier(self: *Lexer) !struct { i32, string } {
         return try self.nextTokenOfKind(.token_identifier);
     }
 
-    /// -> ( line: usize, token: string )
-    pub fn nextTokenOfKind(self: *Lexer, kind: TokenKind) !struct { usize, string } {
+    /// -> ( line: i32, token: string )
+    pub fn nextTokenOfKind(self: *Lexer, kind: TokenKind) !struct { i32, string } {
         const line, const _kind, const token = try self.nextToken();
         if (kind != _kind) {
             return self.@"error"(LexerError.SyntaxError, "syntax error near '{s}'", .{token});
@@ -144,10 +144,10 @@ pub const Lexer = struct {
         return .{ line, token };
     }
 
-    /// -> (line: usize, kind: TokenKind, token: string)
+    /// -> (line: i32, kind: TokenKind, token: string)
     ///
-    /// -> (line: usize, op: TokenKind, token: string)
-    pub fn nextToken(self: *Lexer) !struct { usize, TokenKind, string } {
+    /// -> (line: i32, op: TokenKind, token: string)
+    pub fn nextToken(self: *Lexer) !struct { i32, TokenKind, string } {
         if (self.next_token_line > 0) {
             const line = self.next_token_line;
             const kind = self.next_token_kind;
@@ -414,7 +414,7 @@ pub const Lexer = struct {
         var a = self.re_newline.replaceAllString(str, "\n").?;
         defer a.deinit();
         const replaced_str = a.allocatedSlice()[0..a.items.len];
-        self.line += strings.Count(replaced_str, "\n");
+        self.line += @intCast(strings.Count(replaced_str, "\n"));
         if (replaced_str.len > 0 and replaced_str[0] == '\n') {
             return self.allocator.dupe(u8, replaced_str[1..]);
         }
@@ -429,7 +429,7 @@ pub const Lexer = struct {
             const replaced_str = str[1 .. str.len - 1];
             if (strings.Contains(replaced_str, "\\")) {
                 const all_strings = self.re_newline.findAllString(replaced_str, -1, self.allocator);
-                self.line += if (all_strings) |ss| ss.len else 0;
+                self.line += @intCast(if (all_strings) |ss| ss.len else 0);
                 return try self.escape(replaced_str);
             }
             return self.allocator.dupe(u8, replaced_str);

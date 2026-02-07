@@ -274,7 +274,7 @@ pub const LuaTable = struct {
     }
 };
 
-const LuaValueContext = struct {
+pub const LuaValueContext = struct {
     pub fn hash(_: LuaValueContext, key: LuaValue) u64 {
         return key.hash();
     }

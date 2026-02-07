@@ -47,9 +47,9 @@ pub const EmptyStat = struct {
     }
 };
 pub const BreakStat = struct {
-    line: usize, // break
+    line: i32, // break
 
-    pub fn init(line: usize) BreakStat {
+    pub fn init(line: i32) BreakStat {
         return .{ .line = line };
     }
 };
@@ -107,15 +107,15 @@ pub const RepeatStat = struct {
 
 // for Name '=' exp ',' exp [',' exp] do block end
 pub const ForNumStat = struct {
-    line_of_for: usize,
-    line_of_do: usize,
+    line_of_for: i32,
+    line_of_do: i32,
     var_name: string,
     init_exp: Exp,
     limit_exp: Exp,
     step_exp: Exp,
     block: Block,
 
-    pub fn init(line_of_for: usize, line_of_do: usize, var_name: string, init_exp: Exp, limit_exp: Exp, step_exp: Exp, block: Block) ForNumStat {
+    pub fn init(line_of_for: i32, line_of_do: i32, var_name: string, init_exp: Exp, limit_exp: Exp, step_exp: Exp, block: Block) ForNumStat {
         return .{ .line_of_for = line_of_for, .line_of_do = line_of_do, .var_name = var_name, .init_exp = init_exp, .limit_exp = limit_exp, .step_exp = step_exp, .block = block };
     }
 };
@@ -124,12 +124,12 @@ pub const ForNumStat = struct {
 // namelist ::= Name {',' Name}
 // explist ::= exp {',' exp}
 pub const ForInStat = struct {
-    line_of_do: usize,
+    line_of_do: i32,
     name_list: []string,
     exp_list: []Exp,
     block: Block,
 
-    pub fn init(line_of_do: usize, name_list: []string, exp_list: []Exp, block: Block) ForInStat {
+    pub fn init(line_of_do: i32, name_list: []string, exp_list: []Exp, block: Block) ForInStat {
         return .{ .line_of_do = line_of_do, .name_list = name_list, .exp_list = exp_list, .block = block };
     }
 };
@@ -138,11 +138,11 @@ pub const ForInStat = struct {
 // varlist ::= var {',' var}
 // var ::=  Name | prefixexp '[' exp ']' | prefixexp '.' Name
 pub const AssignStat = struct {
-    last_line: usize,
+    last_line: i32,
     var_list: []Exp,
     exp_list: []Exp,
 
-    pub fn init(last_line: usize, var_list: []Exp, exp_list: []Exp) AssignStat {
+    pub fn init(last_line: i32, var_list: []Exp, exp_list: []Exp) AssignStat {
         return .{ .last_line = last_line, .var_list = var_list, .exp_list = exp_list };
     }
 };
@@ -151,11 +151,11 @@ pub const AssignStat = struct {
 // namelist ::= Name {',' Name}
 // explist ::= exp {',' exp}
 pub const LocalVarDeclStat = struct {
-    last_line: usize,
+    last_line: i32,
     name_list: []string,
     exp_list: ?[]Exp,
 
-    pub fn init(last_line: usize, name_list: []string, exp_list: ?[]Exp) LocalVarDeclStat {
+    pub fn init(last_line: i32, name_list: []string, exp_list: ?[]Exp) LocalVarDeclStat {
         return .{ .last_line = last_line, .name_list = name_list, .exp_list = exp_list };
     }
 };

@@ -5,7 +5,7 @@ const opcodes = @import("opcodes.zig").opcodes;
 const OpMode = @import("opcodes.zig").OpMode;
 
 const MAXARG_Bx = (1 << 18) - 1; // 262143
-const MAXARG_sBx: i32 = @intCast(MAXARG_Bx >> 1); // 131071
+pub const MAXARG_sBx: i32 = @intCast(MAXARG_Bx >> 1); // 131071
 const int = i32;
 const byte = u8;
 const string = []const u8;

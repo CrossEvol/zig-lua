@@ -269,6 +269,12 @@ pub fn build(b: *std.Build) void {
         run_ch07.addArgs(args);
     }
 
+    const pcrez_dep = b.dependency("pcrez", .{
+        .target = target,
+        .optimize = optimize,
+    });
+    const pcrez_mod = pcrez_dep.module("pcrez");
+
     // Chapter 8 executable
     const ch08_exe = b.addExecutable(.{
         .name = "ch08",
@@ -276,7 +282,9 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("src/ch08-main.zig"),
             .target = target,
             .optimize = optimize,
-            .imports = &.{},
+            .imports = &.{
+                .{ .name = "pcrez", .module = pcrez_mod },
+            },
         }),
     });
 
@@ -300,7 +308,9 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("src/ch09-main.zig"),
             .target = target,
             .optimize = optimize,
-            .imports = &.{},
+            .imports = &.{
+                .{ .name = "pcrez", .module = pcrez_mod },
+            },
         }),
     });
 
@@ -324,7 +334,9 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("src/ch10-main.zig"),
             .target = target,
             .optimize = optimize,
-            .imports = &.{},
+            .imports = &.{
+                .{ .name = "pcrez", .module = pcrez_mod },
+            },
         }),
     });
 
@@ -348,7 +360,9 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("src/ch11-main.zig"),
             .target = target,
             .optimize = optimize,
-            .imports = &.{},
+            .imports = &.{
+                .{ .name = "pcrez", .module = pcrez_mod },
+            },
         }),
     });
 
@@ -372,7 +386,9 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("src/ch12-main.zig"),
             .target = target,
             .optimize = optimize,
-            .imports = &.{},
+            .imports = &.{
+                .{ .name = "pcrez", .module = pcrez_mod },
+            },
         }),
     });
 
@@ -396,7 +412,9 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("src/ch13-main.zig"),
             .target = target,
             .optimize = optimize,
-            .imports = &.{},
+            .imports = &.{
+                .{ .name = "pcrez", .module = pcrez_mod },
+            },
         }),
     });
 
@@ -404,7 +422,7 @@ pub fn build(b: *std.Build) void {
 
     const run_ch13 = b.addRunArtifact(ch13_exe);
     const run_ch13_step = b.step("ch13", "Run chapter 13 application");
-    run_ch13_step.dependOn(&run_ch12.step);
+    run_ch13_step.dependOn(&run_ch13.step);
 
     // Make sure ch13 step also installs the executable
     run_ch13_step.dependOn(b.getInstallStep());
@@ -412,12 +430,6 @@ pub fn build(b: *std.Build) void {
     if (b.args) |args| {
         run_ch13.addArgs(args);
     }
-
-    const pcrez_dep = b.dependency("pcrez", .{
-        .target = target,
-        .optimize = optimize,
-    });
-    const pcrez_mod = pcrez_dep.module("pcrez");
 
     // Chapter 14 executable
     const ch14_exe = b.addExecutable(.{
@@ -436,7 +448,7 @@ pub fn build(b: *std.Build) void {
 
     const run_ch14 = b.addRunArtifact(ch14_exe);
     const run_ch14_step = b.step("ch14", "Run chapter 14 application");
-    run_ch14_step.dependOn(&run_ch12.step);
+    run_ch14_step.dependOn(&run_ch14.step);
 
     // Make sure ch14 step also installs the executable
     run_ch14_step.dependOn(b.getInstallStep());
@@ -477,7 +489,7 @@ pub fn build(b: *std.Build) void {
 
     const run_ch16 = b.addRunArtifact(ch16_exe);
     const run_ch16_step = b.step("ch16", "Run chapter 16 application");
-    run_ch16_step.dependOn(&run_ch12.step);
+    run_ch16_step.dependOn(&run_ch16.step);
 
     // Make sure ch16 step also installs the executable
     run_ch16_step.dependOn(b.getInstallStep());
@@ -500,4 +512,45 @@ pub fn build(b: *std.Build) void {
     // make the two of them run in parallel.
     const ch16_test_step = b.step("ch16-test", "Run tests");
     ch16_test_step.dependOn(&run_ch16_tests.step);
+
+    // Chapter 17 executable
+    const ch17_exe = b.addExecutable(.{
+        .name = "ch17",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/ch17-main.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "pcrez", .module = pcrez_mod },
+            },
+        }),
+    });
+
+    b.installArtifact(ch17_exe);
+
+    const run_ch17 = b.addRunArtifact(ch17_exe);
+    const run_ch17_step = b.step("ch17", "Run chapter 17 application");
+    run_ch17_step.dependOn(&run_ch17.step);
+
+    // Make sure ch17 step also installs the executable
+    run_ch17_step.dependOn(b.getInstallStep());
+
+    if (b.args) |args| {
+        run_ch17.addArgs(args);
+    }
+    // Creates an executable that will run `test` blocks from the executable's
+    // root module. Note that test executables only test one module at a time,
+    // hence why we have to create two separate ones.
+    const ch17_tests = b.addTest(.{
+        .root_module = ch17_exe.root_module,
+    });
+
+    // A run step that will run the second test executable.
+    const run_ch17_tests = b.addRunArtifact(ch17_tests);
+
+    // A top level step for running all tests. dependOn can be called multiple
+    // times and since the two run steps do not depend on one another, this will
+    // make the two of them run in parallel.
+    const ch17_test_step = b.step("ch17-test", "Run tests");
+    ch17_test_step.dependOn(&run_ch17_tests.step);
 }

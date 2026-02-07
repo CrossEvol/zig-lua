@@ -32,6 +32,12 @@ pub const LuaValue = union(LuaValueTag) {
 
     pub const LUA_NIL_REF = &LUA_NIL;
 
+    pub fn newString(allocator: std.mem.Allocator, s: string) LuaValue {
+        const lua_string = allocator.create(LuaString) catch @panic("allocation failed for string");
+        lua_string.* = LuaString.init(allocator, s);
+        return .{ .obj = lua_string.asObj() };
+    }
+
     pub fn isNil(self: *const LuaValue) bool {
         return switch (self.*) {
             .nil => true,

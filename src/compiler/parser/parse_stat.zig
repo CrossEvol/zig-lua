@@ -176,7 +176,7 @@ fn parseForStat(lexer: *Lexer) ParserError!Stat {
 }
 
 // for Name ‘=’ exp ‘,’ exp [‘,’ exp] do block end
-fn _finishForNumStat(lexer: *Lexer, line_of_for: usize, var_name: string) ParserError!*ForNumStat {
+fn _finishForNumStat(lexer: *Lexer, line_of_for: i32, var_name: string) ParserError!*ForNumStat {
     _ = try lexer.nextTokenOfKind(.token_op_assign); // for name =
     const init_exp = try parseExp(lexer); // exp
     _ = try lexer.nextTokenOfKind(.token_sep_comma); // ,

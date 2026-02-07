@@ -180,7 +180,7 @@ fn parseExp5(lexer: *Lexer) ParserError!Exp {
         return exp;
     }
 
-    var line: usize = 0;
+    var line: i32 = 0;
     var exps = try std.ArrayList(Exp).initCapacity(lexer.allocator, 8);
     try exps.append(lexer.allocator, exp);
     while (lexer.lookAhead() == .token_op_concat) {
