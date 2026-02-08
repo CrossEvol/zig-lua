@@ -76,7 +76,7 @@ pub fn _return(i: Instruction, vm: *LuaVM) LuaError!void {
     a += 1;
 
     // Close upvalues before returning
-    vm.closeUpvalues(1);
+    try vm.closeUpvalues(1);
 
     if (b == 1) {
         // no return values
@@ -100,7 +100,7 @@ fn _pushFuncAndArgs(a: i32, b: i32, vm: *LuaVM) LuaError!i32 {
         return b - 1;
     } else {
         try _fixStack(a, vm);
-        return @as(i32, @intCast(vm.getTop())) - vm.registerCount() - 1;
+        return vm.getTop() - vm.registerCount() - 1;
     }
 }
 

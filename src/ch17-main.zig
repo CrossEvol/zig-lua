@@ -170,9 +170,9 @@ fn @"error"(ls: *LuaState) LuaError!i32 {
 }
 
 fn pCall(ls: *LuaState) LuaError!i32 {
-    const n_args = @as(i32, @intCast(ls.getTop() - 1));
+    const n_args = ls.getTop() - 1;
     const status = ls.pCall(n_args, -1, 0);
     try ls.pushBoolean(status == .lua_ok);
     ls.insert(1);
-    return @intCast(ls.getTop());
+    return ls.getTop();
 }

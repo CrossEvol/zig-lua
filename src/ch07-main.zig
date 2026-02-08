@@ -68,7 +68,7 @@ pub fn luaMain(proto: *binchunk.Prototype, allocator: std.mem.Allocator) !void {
 }
 
 fn printStack(ls: *LuaVM) LuaError!void {
-    const top = ls.getTop();
+    const top = @as(usize, @intCast(ls.getTop()));
     for (1..top + 1) |x| {
         const i: i32 = @intCast(x);
         const t = ls.Type(i);

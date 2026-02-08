@@ -56,7 +56,6 @@ pub fn _lt(allocator: std.mem.Allocator, a: LuaValue, b: LuaValue, ls: ?*LuaStat
             .int64 => |y| x < y,
             .float64 => |y| @as(f64, @floatFromInt(x)) < y,
             else => {
-                // @panic("comparison error!");
                 try ls.?.pushString("comparison error!");
                 return LuaError.Panic;
             },
@@ -65,7 +64,6 @@ pub fn _lt(allocator: std.mem.Allocator, a: LuaValue, b: LuaValue, ls: ?*LuaStat
             .float64 => |y| x < y,
             .int64 => |y| x < @as(f64, @floatFromInt(y)),
             else => {
-                // @panic("comparison error!");
                 try ls.?.pushString("comparison error!");
                 return LuaError.Panic;
             },
@@ -75,13 +73,11 @@ pub fn _lt(allocator: std.mem.Allocator, a: LuaValue, b: LuaValue, ls: ?*LuaStat
                 .obj => |b_obj| switch (b_obj.kind) {
                     .string => |_| std.mem.lessThan(u8, a.asStr().data(), b.asStr().data()),
                     else => {
-                        // @panic("comparison error!");
                         try ls.?.pushString("comparison error!");
                         return LuaError.Panic;
                     },
                 },
                 else => {
-                    // @panic("comparison error!");
                     try ls.?.pushString("comparison error!");
                     return LuaError.Panic;
                 },
@@ -91,7 +87,6 @@ pub fn _lt(allocator: std.mem.Allocator, a: LuaValue, b: LuaValue, ls: ?*LuaStat
                 if (ok) {
                     return convertToBoolean(result);
                 } else {
-                    // @panic("comparison error!");
                     try ls.?.pushString("comparison error!");
                     return LuaError.Panic;
                 }
@@ -102,7 +97,6 @@ pub fn _lt(allocator: std.mem.Allocator, a: LuaValue, b: LuaValue, ls: ?*LuaStat
             if (ok) {
                 return convertToBoolean(result);
             } else {
-                // @panic("comparison error!");
                 try ls.?.pushString("comparison error!");
                 return LuaError.Panic;
             }
@@ -116,7 +110,6 @@ pub fn _le(allocator: std.mem.Allocator, a: LuaValue, b: LuaValue, ls: ?*LuaStat
             .int64 => |y| x <= y,
             .float64 => |y| @as(f64, @floatFromInt(x)) <= y,
             else => {
-                // @panic("comparison error!");
                 try ls.?.pushString("comparison error!");
                 return LuaError.Panic;
             },
@@ -125,7 +118,6 @@ pub fn _le(allocator: std.mem.Allocator, a: LuaValue, b: LuaValue, ls: ?*LuaStat
             .float64 => |y| x <= y,
             .int64 => |y| x <= @as(f64, @floatFromInt(y)),
             else => {
-                // @panic("comparison error!");
                 try ls.?.pushString("comparison error!");
                 return LuaError.Panic;
             },
@@ -135,13 +127,11 @@ pub fn _le(allocator: std.mem.Allocator, a: LuaValue, b: LuaValue, ls: ?*LuaStat
                 .obj => |b_obj| switch (b_obj.kind) {
                     .string => |_| std.mem.order(u8, a.asStr().data(), b.asStr().data()) != .gt,
                     else => {
-                        // @panic("comparison error!");
                         try ls.?.pushString("comparison error!");
                         return LuaError.Panic;
                     },
                 },
                 else => {
-                    // @panic("comparison error!");
                     try ls.?.pushString("comparison error!");
                     return LuaError.Panic;
                 },
@@ -155,13 +145,12 @@ pub fn _le(allocator: std.mem.Allocator, a: LuaValue, b: LuaValue, ls: ?*LuaStat
                 if (ok) {
                     return convertToBoolean(result);
                 }
-                // @panic("comparison error!");
+
                 try ls.?.pushString("comparison error!");
                 return LuaError.Panic;
             },
         },
         else => {
-            // @panic("comparison error!");
             try ls.?.pushString("comparison error!");
             return LuaError.Panic;
         },

@@ -5,13 +5,14 @@ const ArithOp = api.ArithOp;
 const CompareOp = api.CompareOp;
 const LuaType = api.LuaType;
 const LuaError = @import("../api/root.zig").Api.LuaError;
-const ThreadStatus = @import("../api/root.zig").Api.LuaError;
+const ThreadStatus = @import("../api/root.zig").Api.ThreadStatus;
 const binchunk = @import("../binchunk/root.zig").binchunk;
 const ZigFunction = @import("../state/closure.zig").ZigFunction;
 const GC = @import("../state/gc.zig").GC;
 const LuaString = @import("../state/lua_string.zig").LuaString;
 const LuaValue = @import("../state/lua_value.zig").LuaValue;
 const LuaState = @import("../state/root.zig").state.LuaState;
+const FuncReg = @import("../state/root.zig").state.FuncReg;
 
 const string = []const u8;
 
@@ -27,10 +28,7 @@ pub const LuaVM = struct {
         gc.* = GC.init(allocator);
         errdefer allocator.destroy(gc);
 
-        const ls = try allocator.create(LuaState);
-        errdefer allocator.destroy(ls);
-
-        ls.* = try LuaState.init(allocator, gc);
+        const ls = try LuaState.create(allocator, gc);
 
         gc.lua_state = ls;
 
@@ -189,17 +187,23 @@ pub const LuaVM = struct {
         return self.ls.toZigFunction(idx);
     }
 
+    // [-0, +0, –]
+    // http://www.lua.org/manual/5.3/manual.html#lua_topointer
+    pub fn toPointer(self: *LuaVM, idx: i32) LuaValue {
+        return self.ls.toPointer(idx);
+    }
+
     /// **************************  api_stack  **************************
 
     // [-0, +0, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_gettop
-    pub fn getTop(self: *LuaVM) usize {
+    pub fn getTop(self: *LuaVM) i32 {
         return self.ls.getTop();
     }
 
     // [-0, +0, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_absindex
-    pub fn absIndex(self: *LuaVM, idx: i32) usize {
+    pub fn absIndex(self: *LuaVM, idx: i32) i32 {
         return self.ls.absIndex(idx);
     }
 
@@ -289,6 +293,12 @@ pub const LuaVM = struct {
         try self.ls.pushString(s);
     }
 
+    // [-0, +1, e]
+    // http://www.lua.org/manual/5.3/manual.html#lua_pushfstring
+    pub fn pushFString(self: *LuaVM, comptime fmt_str: string, args: anytype) LuaError!void {
+        try self.ls.pushFString(fmt_str, args);
+    }
+
     // [-0, +1, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_pushcfunction
     pub fn pushZigFunction(self: *LuaVM, f: ZigFunction) LuaError!void {
@@ -355,6 +365,12 @@ pub const LuaVM = struct {
         return try self.ls.Error();
     }
 
+    // [-0, +1, –]
+    // http://www.lua.org/manual/5.3/manual.html#lua_stringtonumber
+    pub fn stringToNumber(self: *LuaVM, s: string) !bool {
+        return try self.stringToNumber(s);
+    }
+
     /// **************************  api_vm  **************************
     pub fn pc(self: *LuaVM) i32 {
         return self.ls.pc();
@@ -388,8 +404,8 @@ pub const LuaVM = struct {
         try self.ls.loadProto(idx);
     }
 
-    pub fn closeUpvalues(self: *LuaVM, a: i32) void {
-        self.ls.closeUpvalues(a);
+    pub fn closeUpvalues(self: *LuaVM, a: i32) LuaError!void {
+        try self.ls.closeUpvalues(a);
     }
 
     /// **************************  api_get  **************************
@@ -523,5 +539,188 @@ pub const LuaVM = struct {
     // http://www.lua.org/manual/5.3/manual.html#lua_pcall
     pub fn pCall(self: *LuaVM, n_args: i32, n_results: i32, msgh: i32) ThreadStatus {
         return self.ls.pCall(n_args, n_results, msgh);
+    }
+
+    /// **************************  auxlib  **************************
+
+    // [-0, +0, v]
+    // http://www.lua.org/manual/5.3/manual.html#luaL_error
+    pub fn error2(self: *LuaVM, comptime fmt_str: string, args: anytype) LuaError!i32 {
+        return try self.ls.error2(fmt_str, args);
+    }
+
+    // [-0, +0, v]
+    // http://www.lua.org/manual/5.3/manual.html#luaL_argerror
+    pub fn argError(self: *LuaVM, arg: i32, extra_msg: string) LuaError!i32 {
+        return try self.ls.argError(arg, extra_msg);
+    }
+
+    // [-0, +0, v]
+    // http://www.lua.org/manual/5.3/manual.html#luaL_checkstack
+    pub fn checkStack2(self: *LuaVM, sz: i32, msg: string) LuaError!void {
+        try self.ls.checkStack2(sz, msg);
+    }
+
+    // [-0, +0, v]
+    // http://www.lua.org/manual/5.3/manual.html#luaL_argcheck
+    pub fn argCheck(self: *LuaVM, cond: bool, arg: i32, extra_msg: string) LuaError!void {
+        try self.ls.argCheck(cond, arg, extra_msg);
+    }
+
+    // [-0, +0, v]
+    // http://www.lua.org/manual/5.3/manual.html#luaL_checkany
+    pub fn checkAny(self: *LuaVM, arg: i32) LuaError!void {
+        try self.ls.checkAny(arg);
+    }
+
+    // [-0, +0, v]
+    // http://www.lua.org/manual/5.3/manual.html#luaL_checktype
+    pub fn checkType(self: *LuaVM, arg: i32, t: LuaType) LuaError!void {
+        try self.ls.checkType(arg, t);
+    }
+
+    // [-0, +0, v]
+    // http://www.lua.org/manual/5.3/manual.html#luaL_checkinteger
+    pub fn checkInteger(self: *LuaVM, arg: i32) LuaError!i64 {
+        return try self.ls.checkInteger(arg);
+    }
+
+    // [-0, +0, v]
+    // http://www.lua.org/manual/5.3/manual.html#luaL_checknumber
+    pub fn checkNumber(self: *LuaVM, arg: i32) LuaError!f64 {
+        return try self.ls.checkNumber(arg);
+    }
+
+    // [-0, +0, v]
+    // http://www.lua.org/manual/5.3/manual.html#luaL_checkstring
+    // http://www.lua.org/manual/5.3/manual.html#luaL_checklstring
+    pub fn checkString(self: *LuaVM, arg: i32) LuaError!string {
+        return try self.ls.checkString(arg);
+    }
+
+    // [-0, +0, v]
+    // http://www.lua.org/manual/5.3/manual.html#luaL_optinteger
+    pub fn optInteger(self: *LuaVM, arg: i32, def: i64) LuaError!i64 {
+        return try self.ls.optInteger(arg, def);
+    }
+
+    // [-0, +0, v]
+    // http://www.lua.org/manual/5.3/manual.html#luaL_optnumber
+    pub fn optNumber(self: *LuaVM, arg: i32, def: f64) LuaError!f64 {
+        return try self.ls.optNumber(arg, def);
+    }
+
+    // [-0, +0, v]
+    // http://www.lua.org/manual/5.3/manual.html#luaL_optstring
+    pub fn optString(self: *LuaVM, arg: i32, def: string) LuaError!string {
+        return try self.ls.optString(arg, def);
+    }
+
+    // [-0, +?, e]
+    // http://www.lua.org/manual/5.3/manual.html#luaL_dofile
+    pub fn doFile(self: *LuaVM, filename: string) LuaError!bool {
+        return try self.ls.doFile(filename);
+    }
+
+    // [-0, +?, –]
+    // http://www.lua.org/manual/5.3/manual.html#luaL_dostring
+    pub fn doString(self: *LuaVM, str: string) LuaError!bool {
+        return try self.ls.doString(str);
+    }
+
+    // [-0, +1, m]
+    // http://www.lua.org/manual/5.3/manual.html#luaL_loadfile
+    pub fn loadFile(self: *LuaVM, filename: string) LuaError!ThreadStatus {
+        return try self.ls.loadFile(filename);
+    }
+
+    // [-0, +1, m]
+    // http://www.lua.org/manual/5.3/manual.html#luaL_loadfilex
+    pub fn loadFileX(self: *LuaVM, filename: string, mode: string) LuaError!ThreadStatus {
+        return try self.ls.loadFileX(filename, mode);
+    }
+
+    // [-0, +1, –]
+    // http://www.lua.org/manual/5.3/manual.html#luaL_loadstring
+    pub fn loadString(self: *LuaVM, s: string) LuaError!i32 {
+        return try self.ls.loadString(s);
+    }
+
+    // [-0, +0, –]
+    // http://www.lua.org/manual/5.3/manual.html#luaL_typename
+    pub fn typeName2(self: *LuaVM, idx: i32) LuaError!string {
+        return try self.ls.typeName2(idx);
+    }
+
+    // [-0, +0, e]
+    // http://www.lua.org/manual/5.3/manual.html#luaL_len
+    pub fn len2(self: *LuaVM, idx: i32) LuaError!i64 {
+        return try self.ls.len2(idx);
+    }
+
+    // [-0, +1, e]
+    // http://www.lua.org/manual/5.3/manual.html#luaL_tolstring
+    pub fn toString2(self: *LuaVM, idx: i32) LuaError!string {
+        return try self.ls.toString2(idx);
+    }
+
+    // [-0, +1, e]
+    // http://www.lua.org/manual/5.3/manual.html#luaL_getsubtable
+    pub fn getSubTable(self: *LuaVM, idx0: i32, fname: string) LuaError!bool {
+        return try self.ls.getSubTable(idx0, fname);
+    }
+
+    // [-0, +(0|1), m]
+    // http://www.lua.org/manual/5.3/manual.html#luaL_getmetafield
+    pub fn GetMetafield(self: *LuaVM, obj: i32, event: string) LuaError!LuaType {
+        return try self.ls.GetMetafield(obj, event);
+    }
+
+    // [-0, +(0|1), e]
+    // http://www.lua.org/manual/5.3/manual.html#luaL_callmeta
+    pub fn callMeta(self: *LuaVM, obj0: i32, event: string) LuaError!bool {
+        return try self.ls.callMeta(obj0, event);
+    }
+
+    // [-0, +0, e]
+    // http://www.lua.org/manual/5.3/manual.html#luaL_openlibs
+    pub fn openLibs(self: *LuaVM) LuaError!void {
+        try self.ls.openLibs();
+    }
+
+    // [-0, +1, e]
+    // http://www.lua.org/manual/5.3/manual.html#luaL_requiref
+    pub fn requireF(self: *LuaVM, mod_name: string, open_f: ZigFunction, glb: bool) LuaError!void {
+        try self.ls.requireF(mod_name, open_f, glb);
+    }
+
+    // [-0, +1, m]
+    // http://www.lua.org/manual/5.3/manual.html#luaL_newlib
+    pub fn newLib(self: *LuaVM, l: FuncReg) LuaError!void {
+        try self.ls.newLib(l);
+    }
+
+    // [-0, +1, m]
+    // http://www.lua.org/manual/5.3/manual.html#luaL_newlibtable
+    pub fn newLibTable(self: *LuaVM, l: FuncReg) LuaError!void {
+        try self.ls.newLibTable(l);
+    }
+
+    // [-nup, +0, m]
+    // http://www.lua.org/manual/5.3/manual.html#luaL_setfuncs
+    pub fn setFuncs(self: *LuaVM, l: FuncReg, nup: i32) LuaError!void {
+        try self.ls.setFuncs(l, nup);
+    }
+
+    pub fn intError(self: *LuaVM, arg: i32) LuaError!void {
+        try self.ls.intError(arg);
+    }
+
+    pub fn tagError(self: *LuaVM, arg: i32, tag: LuaType) LuaError!void {
+        try self.ls.tagError(arg, tag);
+    }
+
+    pub fn typeError(self: *LuaVM, arg: i32, t_name: string) LuaError!i32 {
+        return try self.ls.typeError(arg, t_name);
     }
 };

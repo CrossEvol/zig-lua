@@ -148,7 +148,7 @@ fn parseExp7(lexer: *Lexer) ParserError!Exp {
     while (lexer.lookAhead() == .token_op_band) {
         const line, const op, const token = try lexer.nextToken();
         _ = token;
-        const band = lexer.allocator.create(BinopExp) catch @panic("allocation failed");
+        const band = try lexer.allocator.create(BinopExp);
         band.* = BinopExp.init(line, op, exp, try parseExp6(lexer));
         exp = optimizeBitwiseBinaryOp(band);
     }
@@ -163,7 +163,7 @@ fn parseExp6(lexer: *Lexer) ParserError!Exp {
             .token_op_shl, .token_op_shr => {
                 const line, const op, const token = try lexer.nextToken();
                 _ = token;
-                const shx = lexer.allocator.create(BinopExp) catch @panic("allocation failed");
+                const shx = try lexer.allocator.create(BinopExp);
                 shx.* = BinopExp.init(line, op, exp, try parseExp5(lexer));
                 exp = optimizeBitwiseBinaryOp(shx);
             },

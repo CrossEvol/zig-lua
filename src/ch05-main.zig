@@ -51,7 +51,7 @@ pub fn main() !void {
 }
 
 fn printStack(ls: *LuaState) LuaError!void {
-    const top = ls.getTop();
+    const top = @as(usize, @intCast(ls.getTop()));
     for (1..top + 1) |x| {
         const i: i32 = @intCast(x);
         const t = ls.Type(i);

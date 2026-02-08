@@ -171,7 +171,7 @@ pub const LuaTable = struct {
 
     pub fn hasMetaField(self: *LuaTable, fieldName: string, ls: *LuaState) bool {
         if (self.meta_table) |mt| {
-            const key = ls.gc.createLVString(self.allocator, fieldName);
+            const key = ls.gc.createLVString(fieldName);
             return mt.get(key) != .nil;
         } else {
             return false;

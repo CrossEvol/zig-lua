@@ -8,6 +8,7 @@ pub const state = struct {
     pub const _lt = api_compare._lt;
     pub const _le = api_compare._le;
     pub const LuaState = @import("lua_state.zig").LuaState;
+    pub const FuncReg = @import("lua_state.zig").FuncReg;
     pub const LuaValue = @import("lua_value.zig").LuaValue;
     pub const LuaValueContext = @import("lua_table.zig").LuaValueContext;
 };

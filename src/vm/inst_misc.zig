@@ -19,6 +19,6 @@ pub fn jmp(i: Instruction, vm: *LuaVM) LuaError!void {
     vm.addPC(sBx);
     if (a != 0) {
         // Close upvalues after jmp
-        vm.closeUpvalues(a);
+        try vm.closeUpvalues(a);
     }
 }

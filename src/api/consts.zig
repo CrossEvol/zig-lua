@@ -2,12 +2,11 @@ pub const LUA_MINSTACK = 20;
 const LUAI_MAXSTACK = 1000000;
 pub const LUA_REGISTRYINDEX = -LUAI_MAXSTACK - 1000;
 pub const LUA_RIDX_GLOBALS = 2;
+pub const LUA_MULTRET = -1;
 
 pub fn luaUpvalueIndex(i: i32) i32 {
     return LUA_REGISTRYINDEX - i;
 }
-
-pub const LUA_MULTRET = -1;
 
 pub const LuaType = enum(i8) {
     lua_t_none = -1,
@@ -63,4 +62,4 @@ pub const LuaError = error{
     // NOTE: Allocation failures (OOM) will continue to use @panic("allocation failed") or return error.OutOfMemory
     // which will NOT be caught by pCall (or will be propagated and crash main).
     // For this toy implementation,  assume allocation success or crash on failure.
-};
+} || error{OutOfMemory};

@@ -89,7 +89,6 @@ pub const LuaStack = struct {
     /// The stack takes full ownership of the value.
     pub fn push(self: *LuaStack, val: LuaValue) LuaError!void {
         if (self.top == self.slots.items.len) {
-            // @panic("stack overflow");
             if (self.state) |state| {
                 try state.pushString("stack overflow");
             }
@@ -103,7 +102,6 @@ pub const LuaStack = struct {
     /// Transfers ownership of the value back to the caller.
     pub fn pop(self: *LuaStack) LuaError!LuaValue {
         if (self.top < 1) {
-            // @panic("stack underflow!");
             if (self.state) |state| {
                 try state.pushString("stack underflow!");
             }
@@ -129,7 +127,7 @@ pub const LuaStack = struct {
     }
 
     pub fn popN(self: *LuaStack, allocator: std.mem.Allocator, n: i32) LuaError![]LuaValue {
-        const vals = allocator.alloc(LuaValue, @as(usize, @intCast(n))) catch @panic("allocation failed");
+        const vals = try allocator.alloc(LuaValue, @as(usize, @intCast(n)));
         var i = n - 1;
         while (i >= 0) : (i -= 1) {
             vals[@as(usize, @intCast(i))] = try self.pop();
@@ -137,12 +135,12 @@ pub const LuaStack = struct {
         return vals;
     }
 
-    pub fn absIndex(self: *LuaStack, idx: i32) usize {
+    pub fn absIndex(self: *LuaStack, idx: i32) i32 {
         if (idx >= 0 or idx <= LUA_REGISTRYINDEX) {
-            return @intCast(idx);
+            return idx;
         }
 
-        return @intCast(idx + @as(i32, @intCast(self.top)) + 1);
+        return idx + @as(i32, @intCast(self.top)) + 1;
     }
 
     pub fn isValid(self: *LuaStack, idx: i32) bool {
@@ -154,7 +152,7 @@ pub const LuaStack = struct {
         if (idx == LUA_REGISTRYINDEX) {
             return true;
         }
-        const absIdx = self.absIndex(idx);
+        const absIdx = @as(usize, @intCast(self.absIndex(idx)));
         return absIdx > 0 and absIdx <= self.top;
     }
 
@@ -174,11 +172,10 @@ pub const LuaStack = struct {
         }
         if (idx == LUA_REGISTRYINDEX) {
             // Return the value without cloning - caller is responsible for cloning if needed
-            const t = self.allocator.create(LuaTable) catch @panic("allocation failed");
-            return .{ .obj = &t.obj };
+            return .{ .obj = self.state.?.registry.asObj() };
         }
 
-        const absIdx = self.absIndex(idx);
+        const absIdx = @as(usize, @intCast(self.absIndex(idx)));
         if (absIdx > 0 and absIdx <= self.top) {
             // Return the value without cloning - caller is responsible for cloning if needed
             return self.slots.items[absIdx - 1];
@@ -205,7 +202,7 @@ pub const LuaStack = struct {
             return;
         }
 
-        const absIdx = self.absIndex(idx);
+        const absIdx = @as(usize, @intCast(self.absIndex(idx)));
         if (absIdx > 0 and absIdx <= self.top) {
             self.slots.items[absIdx - 1] = val;
             return;
