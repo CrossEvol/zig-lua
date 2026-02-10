@@ -19,6 +19,7 @@ def execute_command(command: str) -> str:
             capture_output=True,
             text=True,
             cwd=Path(__file__).parent.parent,
+            encoding="utf-8",
         )
         output = result.stdout + result.stderr
         return output
@@ -52,6 +53,7 @@ def main():
         "ch18-hello": "zig build ch18 && .\\zig-out\\bin\\ch18.exe .\\test_data\\hello_world.lua",
         "ch18-fibo": "zig build ch18 && .\\zig-out\\bin\\ch18.exe .\\test_data\\fibonacci.lua",
         "ch18-factor": "zig build ch18 && .\\zig-out\\bin\\ch18.exe .\\test_data\\factorial.lua",
+        "ch19": "zig build ch19 && .\\zig-out\\bin\\ch19.exe .\\test_data\\ch19.lua",
     }
 
     # Clear previous outputs and ensure output directory exists

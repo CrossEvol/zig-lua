@@ -1,17 +1,14 @@
 const std = @import("std");
 
 const LuaError = @import("../api/root.zig").LuaError;
-const api = @import("../api/root.zig");
-const LUA_MULTRET = api.LUA_MULTRET;
-const ThreadStatus = api.ThreadStatus;
-const strings = @import("../api/strings.zig");
-const ZigFunction = @import("../state/closure.zig").ZigFunction;
-const LuaState = @import("../state/root.zig").LuaState;
-
-fn baseFuncImpl(ls: *LuaState) LuaError!i32 {
-    _ = ls;
-    return LuaError.Panic;
-}
+const ApiPKg = @import("../api/root.zig");
+const LUA_MULTRET = ApiPKg.LUA_MULTRET;
+const ThreadStatus = ApiPKg.ThreadStatus;
+const strings = ApiPKg.strings;
+const StatePkg = @import("../state/root.zig");
+const LuaState = StatePkg.LuaState;
+const ZigFunction = StatePkg.ZigFunction;
+const default_zig_function_impl = @import("../state/root.zig").default_zig_function_impl;
 
 var baseFuncs = std.StaticStringMap(?ZigFunction).initComptime(
     .{
@@ -37,8 +34,8 @@ var baseFuncs = std.StaticStringMap(?ZigFunction).initComptime(
         .{ "tostring", baseToString },
         .{ "tonumber", baseToNumber },
         // placeholders
-        .{ "_G", baseFuncImpl }, // null
-        .{ "_VERSION", baseFuncImpl }, // null
+        .{ "_G", default_zig_function_impl }, // null
+        .{ "_VERSION", default_zig_function_impl }, // null
     },
 );
 

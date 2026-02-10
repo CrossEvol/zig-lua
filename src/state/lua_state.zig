@@ -11,6 +11,7 @@ const CompareOp = api.CompareOp;
 const LUA_RIDX_GLOBALS = api.LUA_RIDX_GLOBALS;
 const LUA_MINSTACK = api.LUA_MINSTACK;
 const LuaError = @import("../api/root.zig").LuaError;
+const Rand = @import("../api/root.zig").Rand;
 const binchunk = @import("../binchunk/root.zig");
 const compiler = @import("../compiler/root.zig");
 const number = @import("../number/root.zig");
@@ -50,6 +51,7 @@ pub const FuncReg = std.StaticStringMap(?ZigFunction);
 pub const LuaState = struct {
     registry: *LuaTable, // borrow from gc
     stack: ?*LuaStack, // referenced
+    rand: Rand,
 
     // memory management
     allocator: std.mem.Allocator,
@@ -62,9 +64,12 @@ pub const LuaState = struct {
         const env = gc.createLVTable(0, 0);
         registry.put(.{ .int64 = LUA_RIDX_GLOBALS }, env);
 
+        const rand = Rand.init(@intCast((std.time.Instant.now() catch @panic("Unsupported")).timestamp));
+
         var ls: LuaState = .{
             .registry = registry,
             .stack = null,
+            .rand = rand,
             .allocator = allocator,
             .arena = std.heap.ArenaAllocator.init(allocator),
             .gc = gc,
@@ -91,12 +96,15 @@ pub const LuaState = struct {
         const env = gc.createLVTable(0, 0);
         registry.put(.{ .int64 = LUA_RIDX_GLOBALS }, env);
 
+        const rand = Rand.init(@intCast((std.time.Instant.now() catch @panic("Unsupported")).timestamp));
+
         const ls = try allocator.create(LuaState);
         errdefer allocator.destroy(ls);
 
         ls.* = .{
             .registry = registry,
             .stack = null,
+            .rand = rand,
             .allocator = allocator,
             .arena = std.heap.ArenaAllocator.init(allocator),
             .gc = gc,
@@ -1436,9 +1444,9 @@ pub const LuaState = struct {
     // http://www.lua.org/manual/5.3/manual.html#luaL_len
     pub fn len2(self: *LuaState, idx: i32) LuaError!i64 {
         try self.len(idx);
-        const i, const is_num = try self.toIntegerX(-1);
+        const i, const is_num = self.toIntegerX(-1);
         if (!is_num) {
-            return self.error2("object length is not an integer", .{});
+            _ = try self.error2("object length is not an integer", .{});
         }
         try self.pop(1);
         return i;
@@ -1549,6 +1557,12 @@ pub const LuaState = struct {
         const libs = std.StaticStringMap(ZigFunction).initComptime(
             .{
                 .{ "_G", stdlib.openBaseLib },
+                .{ "math", stdlib.openMathLib },
+                .{ "table", stdlib.openTableLib },
+                .{ "string", stdlib.openStringLib },
+                .{ "string", stdlib.openStringLib },
+                .{ "utf8", stdlib.openUTF8Lib },
+                .{ "os", stdlib.OpenOSLib },
             },
         );
 
@@ -1589,7 +1603,7 @@ pub const LuaState = struct {
     // [-0, +1, m]
     // http://www.lua.org/manual/5.3/manual.html#luaL_newlibtable
     pub fn newLibTable(self: *LuaState, l: FuncReg) LuaError!void {
-        try self.createTable(0, l.keys().len);
+        try self.createTable(0, @intCast(l.keys().len));
     }
 
     // [-nup, +0, m]

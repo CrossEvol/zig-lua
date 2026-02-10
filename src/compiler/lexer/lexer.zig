@@ -3,7 +3,7 @@ const testing = std.testing;
 
 const regex = @import("pcrez");
 
-const strings = @import("../../api/strings.zig");
+const strings = @import("../../api/root.zig").strings;
 const keywords = @import("token.zig").keywords;
 const TokenKind = @import("token.zig").TokenKind;
 
@@ -38,9 +38,6 @@ const re_unicode_escape_pattern =
 // ;
 // const re_hex_float_pattern =
 //     \\^([0-9a-f]+(\.[0-9a-f]*)?|([0-9a-f]*\.[0-9a-f]+))(p[+\-]?[0-9]+)?$
-// ;
-// const re_tag_pattern =
-//     \\%[ #+-0]?[0-9]*(\.[0-9]+)?[cdeEfgGioqsuxX%]
 // ;
 
 pub const LexerError = error{
@@ -534,6 +531,7 @@ pub const Lexer = struct {
                                 var utf8_buf: [4]u8 = undefined;
                                 const len = std.unicode.utf8Encode(@intCast(d), &utf8_buf) catch unreachable;
                                 try buf.appendSlice(self.allocator, utf8_buf[0..len]);
+                                str = str[found.len..];
                                 continue;
                             } else {
                                 return self.@"error"(LexerError.UTF8ValueTooLarge, "UTF-8 value too large near '{s}'", .{found});

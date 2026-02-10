@@ -9,6 +9,11 @@ const ObjectKind = @import("lua_object.zig").ObjectKind;
 
 pub const ZigFunction = *const fn (*LuaState) LuaError!i32;
 
+pub fn default_zig_function_impl(ls: *LuaState) LuaError!i32 {
+    _ = ls;
+    return LuaError.Panic;
+}
+
 pub const UpValue = struct {
     obj: Object,
     val: *LuaValue, // borrowed from stack.slots

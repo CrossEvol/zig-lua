@@ -1,3 +1,6 @@
 [submodule "libs/PCREz"]
 	path = libs/PCREz
 	url = https://github.com/CrossEvol/PCREz.git
+[submodule "libs/zig-datetime"]
+	path = libs/zig-datetime
+	url = https://github.com/CrossEvol/zig-datetime.git

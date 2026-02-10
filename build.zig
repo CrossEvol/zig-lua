@@ -275,6 +275,12 @@ pub fn build(b: *std.Build) void {
     });
     const pcrez_mod = pcrez_dep.module("pcrez");
 
+    const datetime_dep = b.dependency("datetime", .{
+        .target = target,
+        .optimize = optimize,
+    });
+    const datetime_mod = datetime_dep.module("datetime");
+
     // Chapter 8 executable
     const ch08_exe = b.addExecutable(.{
         .name = "ch08",
@@ -561,8 +567,10 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("src/ch18-main.zig"),
             .target = target,
             .optimize = optimize,
+            .link_libc = true,
             .imports = &.{
                 .{ .name = "pcrez", .module = pcrez_mod },
+                .{ .name = "datetime", .module = datetime_mod },
             },
         }),
     });
@@ -594,4 +602,47 @@ pub fn build(b: *std.Build) void {
     // make the two of them run in parallel.
     const ch18_test_step = b.step("ch18-test", "Run tests");
     ch18_test_step.dependOn(&run_ch18_tests.step);
+
+    // Chapter 19 executable
+    const ch19_exe = b.addExecutable(.{
+        .name = "ch19",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/ch19-main.zig"),
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+            .imports = &.{
+                .{ .name = "pcrez", .module = pcrez_mod },
+                .{ .name = "datetime", .module = datetime_mod },
+            },
+        }),
+    });
+
+    b.installArtifact(ch19_exe);
+
+    const run_ch19 = b.addRunArtifact(ch19_exe);
+    const run_ch19_step = b.step("ch19", "Run chapter 19 application");
+    run_ch19_step.dependOn(&run_ch19.step);
+
+    // Make sure ch19 step also installs the executable
+    run_ch19_step.dependOn(b.getInstallStep());
+
+    if (b.args) |args| {
+        run_ch19.addArgs(args);
+    }
+    // Creates an executable that will run `test` blocks from the executable's
+    // root module. Note that test executables only test one module at a time,
+    // hence why we have to create two separate ones.
+    const ch19_tests = b.addTest(.{
+        .root_module = ch19_exe.root_module,
+    });
+
+    // A run step that will run the second test executable.
+    const run_ch19_tests = b.addRunArtifact(ch19_tests);
+
+    // A top level step for running all tests. dependOn can be called multiple
+    // times and since the two run steps do not depend on one another, this will
+    // make the two of them run in parallel.
+    const ch19_test_step = b.step("ch19-test", "Run tests");
+    ch19_test_step.dependOn(&run_ch19_tests.step);
 }

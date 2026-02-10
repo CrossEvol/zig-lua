@@ -4,6 +4,9 @@ pub const LUA_REGISTRYINDEX = -LUAI_MAXSTACK - 1000;
 pub const LUA_RIDX_GLOBALS = 2;
 pub const LUA_MULTRET = -1;
 
+pub const LUA_MAXINTEGER = 1 << 63 - 1;
+pub const LUA_MININTEGER = -1 << 63;
+
 pub fn luaUpvalueIndex(i: i32) i32 {
     return LUA_REGISTRYINDEX - i;
 }

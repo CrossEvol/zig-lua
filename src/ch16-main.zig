@@ -2,11 +2,11 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const Io = std.Io;
 
-const api = @import("api/root.zig");
-const ArithOp = api.ArithOp;
-const CompareOp = api.CompareOp;
+const ApiPkg = @import("api/root.zig");
+const ArithOp = ApiPkg.ArithOp;
+const CompareOp = ApiPkg.CompareOp;
 const LuaError = @import("api/root.zig").LuaError;
-const strings = @import("api/strings.zig");
+const strings = ApiPkg.strings;
 const binchunk = @import("binchunk/root.zig");
 const Lexer = @import("compiler/lexer/lexer.zig").Lexer;
 const TokenKind = @import("compiler/lexer/token.zig").TokenKind;

@@ -5,6 +5,17 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Debug Ch19",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceRoot}/zig-out/bin/ch19.exe",
+            "args": [
+                "${workspaceRoot}/test_data/hello_world.lua"
+            ],
+            "cwd": "${workspaceRoot}",
+            "preLaunchTask": "build-ch19-debug"
+        },
+        {
             "name": "Debug Ch18",
             "type": "cppvsdbg",
             "request": "launch",
