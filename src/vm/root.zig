@@ -1,12 +1,9 @@
 const fpb = @import("fpb.zig");
+pub const intToFb = fpb.intToFb;
+pub const fbToInt = fpb.fbToInt;
 const instruction = @import("instruction.zig");
+pub const Instruction = instruction.Instruction;
+pub const MAXARG_sBx = instruction.MAXARG_sBx;
+pub const LuaVM = @import("lua_vm.zig").LuaVM;
 const opcodes = @import("opcodes.zig");
-
-pub const vm = struct {
-    pub const Instruction = instruction.Instruction;
-    pub const LuaVM = @import("lua_vm.zig").LuaVM;
-    pub const OpCode = opcodes.OpCode;
-    pub const MAXARG_sBx = instruction.MAXARG_sBx;
-    pub const intToFb = fpb.intToFb;
-    pub const fbToInt = fpb.fbToInt;
-};
+pub const OpCode = opcodes.OpCode;

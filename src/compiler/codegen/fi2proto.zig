@@ -1,10 +1,10 @@
 const std = @import("std");
 
-const binchunk = @import("../../binchunk/root.zig").binchunk;
+const binchunk = @import("../../binchunk/root.zig");
 const Prototype = binchunk.Prototype;
 const LocVar = binchunk.LocVar;
 const Upvalue = binchunk.Upvalue;
-const LuaValue = @import("../../state/root.zig").state.LuaValue;
+const LuaValue = @import("../../state/root.zig").LuaValue;
 const CompilerError = @import("../compiler.zig").CompilerError;
 const FuncInfo = @import("func_info.zig").FuncInfo;
 

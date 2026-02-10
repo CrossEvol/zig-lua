@@ -1,11 +1,12 @@
 const std = @import("std");
 
-const Block = @import("../ast/block.zig").Block;
-const Exp = @import("../ast/exp.zig").Exp;
-const Stat = @import("../ast/stat.zig").Stat;
-const LexerPkg = @import("../lexer/lexer.zig");
+const AstPkg = @import("../ast/root.zig");
+const Exp = AstPkg.Exp;
+const Block = AstPkg.Block;
+const Stat = AstPkg.Stat;
+const LexerPkg = @import("../lexer/root.zig");
 const Lexer = LexerPkg.Lexer;
-const TokenKind = @import("../lexer/token.zig").TokenKind;
+const TokenKind = @import("../lexer/root.zig").TokenKind;
 const parseExpList = @import("parse_exp.zig").parseExpList;
 const ParserError = @import("parser.zig").ParserError;
 const parseStat = @import("parse_stat.zig").parseStat;

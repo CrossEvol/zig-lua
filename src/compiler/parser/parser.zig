@@ -1,8 +1,10 @@
 const std = @import("std");
 
-const Block = @import("../ast/block.zig").Block;
-const Lexer = @import("../lexer/lexer.zig").Lexer;
-const LexerError = @import("../lexer/lexer.zig").LexerError;
+const AstPkg = @import("../ast/root.zig");
+const Block = AstPkg.Block;
+const LexerPkg = @import("../lexer/root.zig");
+const Lexer = LexerPkg.Lexer;
+const LexerError = LexerPkg.LexerError;
 const parseBlock = @import("parse_block.zig").parseBlock;
 
 const string = []const u8;

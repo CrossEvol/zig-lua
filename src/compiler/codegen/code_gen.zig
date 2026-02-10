@@ -1,8 +1,9 @@
 const std = @import("std");
 
-const Prototype = @import("../../binchunk/root.zig").binchunk.Prototype;
-const Block = @import("../ast/block.zig").Block;
-const FuncDefExp = @import("../ast/exp.zig").FuncDefExp;
+const Prototype = @import("../../binchunk/root.zig").Prototype;
+const AstPkg = @import("../ast/root.zig");
+const Block = AstPkg.Block;
+const FuncDefExp = AstPkg.FuncDefExp;
 const cgFuncDefExp = @import("cg_exp.zig").cgFuncDefExp;
 const FuncInfo = @import("func_info.zig").FuncInfo;
 const toProto = @import("fi2proto.zig").toProto;

@@ -1,4 +1,4 @@
-const LuaError = @import("../api/root.zig").Api.LuaError;
+const LuaError = @import("../api/root.zig").LuaError;
 const InstCall = @import("inst_call.zig");
 const self = InstCall.self;
 const call = InstCall.call;

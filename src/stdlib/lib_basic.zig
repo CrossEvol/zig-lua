@@ -1,12 +1,12 @@
 const std = @import("std");
 
-const LuaError = @import("../api/root.zig").Api.LuaError;
-const api = @import("../api/root.zig").Api;
+const LuaError = @import("../api/root.zig").LuaError;
+const api = @import("../api/root.zig");
 const LUA_MULTRET = api.LUA_MULTRET;
 const ThreadStatus = api.ThreadStatus;
 const strings = @import("../api/strings.zig");
 const ZigFunction = @import("../state/closure.zig").ZigFunction;
-const LuaState = @import("../state/root.zig").state.LuaState;
+const LuaState = @import("../state/root.zig").LuaState;
 
 fn baseFuncImpl(ls: *LuaState) LuaError!i32 {
     _ = ls;

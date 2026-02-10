@@ -1,12 +1,9 @@
 const binary_chunk = @import("binary_chunk.zig");
-
-pub const binchunk = struct {
-    pub const Header = @import("binary_chunk.zig").Header;
-    pub const Tag = @import("binary_chunk.zig").Tag;
-    pub const Prototype = @import("binary_chunk.zig").Prototype;
-    pub const Upvalue = @import("binary_chunk.zig").Upvalue;
-    pub const LocVar = @import("binary_chunk.zig").LocVar;
-    pub const undump = @import("binary_chunk.zig").undump;
-    pub const is_binary_chunk = @import("binary_chunk.zig").is_binary_chunk;
-    pub const reader = @import("reader.zig");
-};
+pub const Header = binary_chunk.Header;
+pub const is_binary_chunk = binary_chunk.is_binary_chunk;
+pub const LocVar = binary_chunk.LocVar;
+pub const Prototype = binary_chunk.Prototype;
+pub const Tag = binary_chunk.Tag;
+pub const undump = binary_chunk.undump;
+pub const Upvalue = binary_chunk.Upvalue;
+pub const reader = @import("reader.zig");

@@ -7,7 +7,7 @@
 
 //  functioncall ::=  prefixexp args | prefixexp ‘:’ Name args
 
-const TokenKind = @import("../lexer/token.zig").TokenKind;
+const TokenKind = @import("../lexer/root.zig").TokenKind;
 const Block = @import("block.zig").Block;
 
 const string = []const u8;

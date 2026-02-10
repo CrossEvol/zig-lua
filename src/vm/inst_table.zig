@@ -1,4 +1,4 @@
-const LuaError = @import("../api/root.zig").Api.LuaError;
+const LuaError = @import("../api/root.zig").LuaError;
 const fpb = @import("fpb.zig");
 const fbToInt = fpb.fbToInt;
 const Instruction = @import("instruction.zig").Instruction;

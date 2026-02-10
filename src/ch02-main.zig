@@ -1,9 +1,9 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
-const binchunk = @import("binchunk/root.zig").binchunk;
+const binchunk = @import("binchunk/root.zig");
 const LuaString = @import("state/lua_string.zig").LuaString;
-const LuaValue = @import("state/root.zig").state.LuaValue;
+const LuaValue = @import("state/root.zig").LuaValue;
 
 const string = []const u8;
 const int = i32;

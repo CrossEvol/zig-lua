@@ -1,5 +1,5 @@
-const luaUpvalueIndex = @import("../api/root.zig").Api.luaUpvalueIndex;
-const LuaError = @import("../api/root.zig").Api.LuaError;
+const luaUpvalueIndex = @import("../api/root.zig").luaUpvalueIndex;
+const LuaError = @import("../api/root.zig").LuaError;
 const Instruction = @import("instruction.zig").Instruction;
 const LuaVM = @import("lua_vm.zig").LuaVM;
 

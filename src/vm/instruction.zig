@@ -1,4 +1,4 @@
-const LuaError = @import("../api/root.zig").Api.LuaError;
+const LuaError = @import("../api/root.zig").LuaError;
 const LuaVM = @import("lua_vm.zig").LuaVM;
 const OpArgMask = @import("opcodes.zig").OpArgMask;
 const opcodes = @import("opcodes.zig").opcodes;

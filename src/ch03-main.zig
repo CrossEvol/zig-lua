@@ -1,9 +1,9 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
-const binchunk = @import("binchunk/root.zig").binchunk;
-const LuaValue = @import("state/root.zig").state.LuaValue;
-const vm = @import("vm/root.zig").vm;
+const binchunk = @import("binchunk/root.zig");
+const LuaValue = @import("state/root.zig").LuaValue;
+const vm = @import("vm/root.zig");
 const Instruction = vm.Instruction;
 
 const string = []const u8;

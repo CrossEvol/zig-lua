@@ -1,7 +1,7 @@
 const std = @import("std");
 
-const binchunk = @import("../binchunk/root.zig").binchunk;
-const codegen = @import("codegen/code_gen.zig");
+const binchunk = @import("../binchunk/root.zig");
+const codegen = @import("codegen/root.zig");
 const parser = @import("parser/parser.zig");
 
 pub const CompilerError = error{ICompilerError} || error{OutOfMemory};

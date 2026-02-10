@@ -1,8 +1,8 @@
 const std = @import("std");
 const math = std.math;
 
-const binchunk = @import("../binchunk/root.zig").binchunk;
-const number = @import("../number//root.zig").number;
+const binchunk = @import("../binchunk/root.zig");
+const number = @import("../number//root.zig");
 const convertToFloat = @import("lua_value.zig").convertToFloat;
 const convertToInteger = @import("lua_value.zig").convertToInteger;
 pub const LuaValue = @import("lua_value.zig").LuaValue;

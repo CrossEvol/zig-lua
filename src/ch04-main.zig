@@ -1,12 +1,12 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
-const LuaError = @import("api/root.zig").Api.LuaError;
-const binchunk = @import("binchunk/root.zig").binchunk;
+const LuaError = @import("api/root.zig").LuaError;
+const binchunk = @import("binchunk/root.zig");
 const GC = @import("state/gc.zig").GC;
-const LuaValue = @import("state/root.zig").state.LuaValue;
-const LuaState = @import("state/root.zig").state.LuaState;
-const vm = @import("vm/root.zig").vm;
+const LuaValue = @import("state/root.zig").LuaValue;
+const LuaState = @import("state/root.zig").LuaState;
+const vm = @import("vm/root.zig");
 const Instruction = vm.Instruction;
 
 const string = []const u8;

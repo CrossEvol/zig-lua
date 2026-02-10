@@ -1,7 +1,7 @@
 const std = @import("std");
 
-const LuaError = @import("../api/root.zig").Api.LuaError;
-const binchunk = @import("../binchunk/root.zig").binchunk;
+const LuaError = @import("../api/root.zig").LuaError;
+const binchunk = @import("../binchunk/root.zig");
 const LuaState = @import("lua_state.zig").LuaState;
 const LuaValue = @import("lua_value.zig").LuaValue;
 const Object = @import("lua_object.zig").Object;

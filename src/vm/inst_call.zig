@@ -1,4 +1,4 @@
-const LuaError = @import("../api/root.zig").Api.LuaError;
+const LuaError = @import("../api/root.zig").LuaError;
 const Instruction = @import("instruction.zig").Instruction;
 const LuaVM = @import("lua_vm.zig").LuaVM;
 

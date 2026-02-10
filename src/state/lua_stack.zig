@@ -1,7 +1,7 @@
 const std = @import("std");
 
-const LuaError = @import("../api/root.zig").Api.LuaError;
-const binchunk = @import("../binchunk/root.zig").binchunk;
+const LuaError = @import("../api/root.zig").LuaError;
+const binchunk = @import("../binchunk/root.zig");
 const Closure = @import("closure.zig").Closure;
 const LuaState = @import("lua_state.zig").LuaState;
 const LuaTable = @import("lua_table.zig").LuaTable;
@@ -9,7 +9,7 @@ const LuaValue = @import("lua_value.zig").LuaValue;
 const Object = @import("lua_object.zig").Object;
 const UpValue = @import("closure.zig").UpValue;
 
-const LUA_REGISTRYINDEX: i32 = @intCast(@import("../api/root.zig").Api.LUA_REGISTRYINDEX);
+const LUA_REGISTRYINDEX: i32 = @intCast(@import("../api/root.zig").LUA_REGISTRYINDEX);
 pub const LuaStack = struct {
     // virtual stack
     slots: std.ArrayList(LuaValue),

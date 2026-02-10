@@ -1,7 +1,7 @@
 const std = @import("std");
 const math = std.math;
 
-const number = @import("../number/root.zig").number;
+const number = @import("../number/root.zig");
 const LuaState = @import("lua_state.zig").LuaState;
 const LuaString = @import("lua_string.zig").LuaString;
 const LuaValue = @import("lua_value.zig").LuaValue;

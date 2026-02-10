@@ -1,18 +1,18 @@
 const std = @import("std");
 
-const api = @import("../api/root.zig").Api;
+const api = @import("../api/root.zig");
 const ArithOp = api.ArithOp;
 const CompareOp = api.CompareOp;
 const LuaType = api.LuaType;
-const LuaError = @import("../api/root.zig").Api.LuaError;
-const ThreadStatus = @import("../api/root.zig").Api.ThreadStatus;
-const binchunk = @import("../binchunk/root.zig").binchunk;
+const LuaError = @import("../api/root.zig").LuaError;
+const ThreadStatus = @import("../api/root.zig").ThreadStatus;
+const binchunk = @import("../binchunk/root.zig");
 const ZigFunction = @import("../state/closure.zig").ZigFunction;
 const GC = @import("../state/gc.zig").GC;
 const LuaString = @import("../state/lua_string.zig").LuaString;
 const LuaValue = @import("../state/lua_value.zig").LuaValue;
-const LuaState = @import("../state/root.zig").state.LuaState;
-const FuncReg = @import("../state/root.zig").state.FuncReg;
+const LuaState = @import("../state/root.zig").LuaState;
+const FuncReg = @import("../state/root.zig").FuncReg;
 
 const string = []const u8;
 

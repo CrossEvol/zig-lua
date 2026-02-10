@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const binchunk = @import("../binchunk/root.zig").binchunk;
+const binchunk = @import("../binchunk/root.zig");
 const Closure = @import("closure.zig").Closure;
 const LuaState = @import("lua_state.zig").LuaState;
 const LuaString = @import("lua_string.zig").LuaString;
