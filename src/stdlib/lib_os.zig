@@ -39,7 +39,7 @@ fn exitDelegate(code: u8) void {
     std.process.exit(code);
 }
 
-pub fn OpenOSLib(ls: *LuaState) LuaError!i32 {
+pub fn openOSLib(ls: *LuaState) LuaError!i32 {
     try ls.newLib(sysLib);
     return 1;
 }

@@ -1423,7 +1423,8 @@ pub const LuaState = struct {
             const chunk_name = try std.fmt.allocPrint(self.allocator, "@{s}", .{filename});
             defer self.allocator.free(chunk_name);
             return @enumFromInt(try self.load(data, chunk_name, mode));
-        } else |_| {
+        } else |err| {
+            std.debug.print("{s}", .{@errorName(err)});
             return .lua_errfile;
         }
     }
@@ -1562,7 +1563,8 @@ pub const LuaState = struct {
                 .{ "string", stdlib.openStringLib },
                 .{ "string", stdlib.openStringLib },
                 .{ "utf8", stdlib.openUTF8Lib },
-                .{ "os", stdlib.OpenOSLib },
+                .{ "os", stdlib.openOSLib },
+                .{ "package", stdlib.openPackageLib },
             },
         );
 

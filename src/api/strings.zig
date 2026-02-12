@@ -1,5 +1,7 @@
 const std = @import("std");
 
+const LuaError = @import("../api/root.zig").LuaError;
+
 const string = []const u8;
 
 // HasPrefix reports whether the string s begins with prefix.
@@ -136,7 +138,10 @@ fn replaceEmptyOld(allocator: std.mem.Allocator, s: string, new: string, n: i32)
     errdefer sb.deinit(allocator);
 
     var insertions: i32 = 0;
-    var iter = (try std.unicode.Utf8View.init(s)).iterator();
+    var iter = (std.unicode.Utf8View.init(s) catch |err| {
+        std.debug.print("{s}", .{@errorName(err)});
+        return LuaError.Panic;
+    }).iterator();
 
     // Insert at the beginning
     if (n != 0 and (n < 0 or insertions < n)) {
@@ -439,7 +444,10 @@ pub fn Split(allocator: std.mem.Allocator, s: string, sep: string) ![]string {
 
     if (sep.len == 0) {
         if (s.len == 0) return try list.toOwnedSlice(allocator);
-        var iter = (try std.unicode.Utf8View.init(s)).iterator();
+        var iter = (std.unicode.Utf8View.init(s) catch |err| {
+            std.debug.print("{s}", .{@errorName(err)});
+            return LuaError.Panic;
+        }).iterator();
         while (iter.nextCodepointSlice()) |slice| {
             try list.append(allocator, slice);
         }

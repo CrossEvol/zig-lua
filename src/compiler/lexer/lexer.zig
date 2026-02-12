@@ -3,6 +3,7 @@ const testing = std.testing;
 
 const regex = @import("pcrez");
 
+const LuaError = @import("../../api/root.zig").LuaError;
 const strings = @import("../../api/root.zig").strings;
 const keywords = @import("token.zig").keywords;
 const TokenKind = @import("token.zig").TokenKind;
@@ -50,7 +51,7 @@ pub const LexerError = error{
     UTF8ValueTooLarge,
     InvalidEscapeSequence,
     Unreachable,
-};
+} || LuaError;
 
 pub const Lexer = struct {
     allocator: std.mem.Allocator,
