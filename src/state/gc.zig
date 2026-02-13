@@ -5,7 +5,6 @@ const Closure = @import("closure.zig").Closure;
 const LuaState = @import("lua_state.zig").LuaState;
 const LuaString = @import("lua_string.zig").LuaString;
 const LuaTable = @import("lua_table.zig").LuaTable;
-const LuaThread = @import("lua_object.zig").LuaThread;
 const LuaValue = @import("lua_value.zig").LuaValue;
 const Object = @import("lua_object.zig").Object;
 const ObjectKind = @import("lua_object.zig").ObjectKind;
@@ -110,6 +109,17 @@ pub const GC = struct {
         return .{ .obj = closure.asObj() };
     }
 
+    pub fn createLVLuaState(self: *GC, registry: ?*LuaTable) LuaValue {
+        const lua_state = if (registry) |r|
+            LuaState.createWithRegistry(self, r) catch @panic("allocation failed for closure")
+        else
+            LuaState.create(self) catch @panic("allocation failed for closure");
+        self.verifyBytesAllocated(LuaState);
+        lua_state.obj.next = self.objects;
+        self.objects = &lua_state.obj;
+        return .{ .obj = lua_state.asObj() };
+    }
+
     fn markRoots(self: *GC) void {
         self.lua_state.?.mark();
     }
@@ -135,7 +145,7 @@ pub const GC = struct {
                     .string => self.bytes_allocated -= @sizeOf(LuaString),
                     .lua_table => self.bytes_allocated -= @sizeOf(LuaTable),
                     .closure => self.bytes_allocated -= @sizeOf(Closure),
-                    .lua_state => self.bytes_allocated -= @sizeOf(LuaThread),
+                    .lua_state => self.bytes_allocated -= @sizeOf(LuaState),
                     .upval => self.bytes_allocated -= @sizeOf(UpValue),
                     .none => {},
                 }

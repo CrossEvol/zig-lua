@@ -6,6 +6,7 @@ pub const CompareOp = consts.CompareOp;
 pub const ThreadStatus = consts.ThreadStatus;
 pub const LUA_MINSTACK = consts.LUA_MINSTACK;
 pub const LUA_REGISTRYINDEX = consts.LUA_REGISTRYINDEX;
+pub const LUA_RIDX_MAINTHREAD = consts.LUA_RIDX_MAINTHREAD;
 pub const LUA_RIDX_GLOBALS = consts.LUA_RIDX_GLOBALS;
 pub const LUA_MULTRET = consts.LUA_MULTRET;
 pub const LUA_MAXINTEGER = consts.LUA_MAXINTEGER;

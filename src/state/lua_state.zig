@@ -1,5 +1,6 @@
 const std = @import("std");
 const math = std.math;
+const Thread = std.Thread;
 
 const api = @import("../api/root.zig");
 const LUA_REGISTRYINDEX = api.LUA_REGISTRYINDEX;
@@ -9,6 +10,7 @@ const LuaType = api.LuaType;
 const ArithOp = api.ArithOp;
 const CompareOp = api.CompareOp;
 const LUA_RIDX_GLOBALS = api.LUA_RIDX_GLOBALS;
+const LUA_RIDX_MAINTHREAD = api.LUA_RIDX_MAINTHREAD;
 const LUA_MINSTACK = api.LUA_MINSTACK;
 const LuaError = @import("../api/root.zig").LuaError;
 const Rand = @import("../api/root.zig").Rand;
@@ -27,6 +29,7 @@ const LuaVM = vm.LuaVM;
 const OpCode = vm.OpCode;
 const Instruction = vm.Instruction;
 const callMetamethod = @import("lua_value.zig").callMetamethod;
+const Channel = @import("channel.zig").Channel;
 const Closure = @import("closure.zig").Closure;
 const convertToBoolean = @import("lua_value.zig").convertToBoolean;
 const convertToFloat = @import("lua_value.zig").convertToFloat;
@@ -49,9 +52,16 @@ const string = []const u8;
 pub const FuncReg = std.StaticStringMap(?ZigFunction);
 
 pub const LuaState = struct {
+    obj: Object,
     registry: *LuaTable, // borrow from gc
     stack: ?*LuaStack, // referenced
     rand: Rand,
+
+    // coroutine
+    co_chan: ?*Channel,
+    co_status: ThreadStatus,
+    co_caller: ?*LuaState,
+    co_thread: ?Thread,
 
     // memory management
     allocator: std.mem.Allocator,
@@ -61,19 +71,27 @@ pub const LuaState = struct {
     pub fn init(allocator: std.mem.Allocator, gc: *GC) !LuaState {
         var lv_table = gc.createLVTable(0, 0);
         const registry = lv_table.asTable();
-        const env = gc.createLVTable(0, 0);
-        registry.put(.{ .int64 = LUA_RIDX_GLOBALS }, env);
 
         const rand = Rand.init(@intCast((std.time.Instant.now() catch @panic("Unsupported")).timestamp));
 
         var ls: LuaState = .{
+            .obj = Object.init(.lua_state),
             .registry = registry,
             .stack = null,
             .rand = rand,
+            .co_chan = null,
+            .co_status = .lua_ok,
+            .co_caller = null,
+            .co_thread = null,
             .allocator = allocator,
             .arena = std.heap.ArenaAllocator.init(allocator),
             .gc = gc,
         };
+
+        const env = gc.createLVTable(0, 0);
+        registry.put(.{ .int64 = LUA_RIDX_GLOBALS }, env);
+        const global_table = gc.createLVTable(0, 20);
+        registry.put(.{ .int64 = LUA_RIDX_MAINTHREAD }, global_table);
 
         const stack = try allocator.create(LuaStack);
         stack.* = try LuaStack.init(allocator, @intCast(LUA_MINSTACK), null);
@@ -83,38 +101,94 @@ pub const LuaState = struct {
     }
 
     pub fn deinit(self: *LuaState, allocator: std.mem.Allocator) void {
-        if (self.stack) |s| {
-            s.deinit();
-            allocator.destroy(s);
+        var option_curr = self.stack;
+        while (true) {
+            if (option_curr) |curr| {
+                const prev = curr.prev;
+                curr.deinit();
+                allocator.destroy(curr);
+                option_curr = prev;
+            } else {
+                break;
+            }
         }
+
+        if (self.co_thread) |t| {
+            t.detach();
+        }
+        if (self.co_chan) |c| {
+            allocator.destroy(c);
+        }
+
         self.arena.deinit();
     }
 
-    pub fn create(allocator: std.mem.Allocator, gc: *GC) !*LuaState {
+    pub fn create(gc: *GC) !*LuaState {
         var lv_table = gc.createLVTable(0, 0);
         const registry = lv_table.asTable();
-        const env = gc.createLVTable(0, 0);
-        registry.put(.{ .int64 = LUA_RIDX_GLOBALS }, env);
 
         const rand = Rand.init(@intCast((std.time.Instant.now() catch @panic("Unsupported")).timestamp));
 
-        const ls = try allocator.create(LuaState);
-        errdefer allocator.destroy(ls);
+        const ls = try gc.allocator.create(LuaState);
+        errdefer gc.allocator.destroy(ls);
 
         ls.* = .{
+            .obj = Object.init(.lua_state),
             .registry = registry,
             .stack = null,
             .rand = rand,
-            .allocator = allocator,
-            .arena = std.heap.ArenaAllocator.init(allocator),
+            .co_chan = null,
+            .co_status = .lua_ok,
+            .co_caller = null,
+            .co_thread = null,
+            .allocator = gc.allocator,
+            .arena = std.heap.ArenaAllocator.init(gc.allocator),
             .gc = gc,
         };
 
-        const stack = try allocator.create(LuaStack);
-        stack.* = try LuaStack.init(allocator, @intCast(LUA_MINSTACK), ls);
+        const env = gc.createLVTable(0, 0);
+        registry.put(.{ .int64 = LUA_RIDX_GLOBALS }, env);
+        const global_table = gc.createLVTable(0, 20);
+        registry.put(.{ .int64 = LUA_RIDX_MAINTHREAD }, global_table);
+
+        const stack = try gc.allocator.create(LuaStack);
+        stack.* = try LuaStack.init(gc.allocator, @intCast(LUA_MINSTACK), ls);
         ls.pushLuaStack(stack);
 
         return ls;
+    }
+
+    pub fn createWithRegistry(gc: *GC, registry: *LuaTable) !*LuaState {
+        const rand = Rand.init(@intCast((std.time.Instant.now() catch @panic("Unsupported")).timestamp));
+
+        const ls = try gc.allocator.create(LuaState);
+        errdefer gc.allocator.destroy(ls);
+
+        ls.* = .{
+            .obj = Object.init(.lua_state),
+            .registry = registry,
+            .stack = null,
+            .rand = rand,
+            .co_chan = null,
+            .co_status = .lua_ok,
+            .co_caller = null,
+            .co_thread = null,
+            .allocator = gc.allocator,
+            .arena = std.heap.ArenaAllocator.init(gc.allocator),
+            .gc = gc,
+        };
+
+        return ls;
+    }
+
+    // Cast from generic object -> LuaState(**Downcast**)
+    pub fn fromObj(obj: *Object) *LuaState {
+        return @alignCast(@fieldParentPtr("obj", obj));
+    }
+
+    // Cast from LuaState -> generic object(**Upcast**)
+    pub fn asObj(self: *LuaState) *Object {
+        return &self.obj;
     }
 
     pub fn mark(self: *const LuaState) void {
@@ -122,6 +196,10 @@ pub const LuaState = struct {
         if (self.stack) |stack| {
             stack.mark();
         }
+    }
+
+    pub fn isMainThread(self: *LuaState) bool {
+        return self.registry.get(.{ .int64 = LUA_RIDX_MAINTHREAD }).eql(.{ .obj = self.asObj() });
     }
 
     pub fn pushLuaStack(self: *LuaState, stack: *LuaStack) void {
@@ -358,6 +436,19 @@ pub const LuaState = struct {
     }
 
     // [-0, +0, –]
+    // http://www.lua.org/manual/5.3/manual.html#lua_tothread
+    pub fn toThread(self: *LuaState, idx: i32) ?*LuaState {
+        const val = self.stack.?.get(idx);
+        return switch (val) {
+            .obj => |obj| switch (obj.kind) {
+                .lua_state => |_| val.asThread(),
+                else => null,
+            },
+            else => null,
+        };
+    }
+
+    // [-0, +0, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_topointer
     pub fn toPointer(self: *LuaState, idx: i32) i32 {
         const addr = @intFromPtr(&self.stack.?.get(idx));
@@ -461,6 +552,13 @@ pub const LuaState = struct {
         }
     }
 
+    // [-?, +?, –]
+    // http://www.lua.org/manual/5.3/manual.html#lua_xmove
+    pub fn xMove(self: *LuaState, to: *LuaState, n: i32) LuaError!void {
+        const vals = try self.stack.?.popN(self.arena.allocator(), n);
+        try to.stack.?.pushN(vals, n);
+    }
+
     /// **************************  api_push  **************************
 
     // [-0, +1, –]
@@ -543,6 +641,13 @@ pub const LuaState = struct {
     pub fn pushGlobalTable(self: *LuaState) LuaError!void {
         const global = self.registry.get(.{ .int64 = LUA_RIDX_GLOBALS });
         try self.stack.?.push(global);
+    }
+
+    // [-0, +1, –]
+    // http://www.lua.org/manual/5.3/manual.html#lua_pushthread
+    pub fn pushThread(self: *LuaState) LuaError!bool {
+        try self.stack.?.push(.{ .obj = self.asObj() });
+        return self.isMainThread();
     }
 
     /// **************************  api_arith  **************************
@@ -1139,13 +1244,10 @@ pub const LuaState = struct {
         // pass args, pop func
         var args: ?[]LuaValue = null;
         if (n_args > 0) {
-            args = try self.stack.?.popN(allocator, n_args);
+            args = try self.stack.?.popN(self.arena.allocator(), n_args);
             try new_stack.pushN(args.?, n_args);
         }
-        // Ensure free args memory even unwind stacks
-        defer if (args) |a| {
-            allocator.free(a);
-        };
+
         _ = try self.stack.?.pop();
 
         // run closure
@@ -1154,12 +1256,9 @@ pub const LuaState = struct {
 
         // get results before popping the stack
         const results = if (n_results != 0)
-            try new_stack.popN(allocator, r)
+            try new_stack.popN(self.arena.allocator(), r)
         else
             null;
-        defer if (results) |res| {
-            allocator.free(res);
-        };
 
         self.popLuaStack(allocator);
 
@@ -1182,8 +1281,7 @@ pub const LuaState = struct {
         new_stack.closure = c;
 
         // pass args, pop func
-        const func_and_args = try self.stack.?.popN(allocator, n_args + 1);
-        defer allocator.free(func_and_args);
+        const func_and_args = try self.stack.?.popN(self.arena.allocator(), n_args + 1);
 
         try new_stack.pushN(func_and_args[1..], n_params);
         new_stack.top = n_registers;
@@ -1203,12 +1301,9 @@ pub const LuaState = struct {
                 0;
         const results =
             if (n_results != 0 and results_count > 0)
-                try new_stack.popN(allocator, results_count)
+                try new_stack.popN(self.arena.allocator(), results_count)
             else
                 null;
-        defer if (results) |res| {
-            allocator.free(res);
-        };
 
         self.popLuaStack(allocator);
 
@@ -1565,6 +1660,7 @@ pub const LuaState = struct {
                 .{ "utf8", stdlib.openUTF8Lib },
                 .{ "os", stdlib.openOSLib },
                 .{ "package", stdlib.openPackageLib },
+                .{ "coroutine", stdlib.openCoroutineLib },
             },
         );
 
@@ -1651,5 +1747,100 @@ pub const LuaState = struct {
         defer self.allocator.free(msg);
         try self.pushString(msg);
         return self.argError(arg, msg);
+    }
+
+    /// **************************  api_coroutine  **************************
+
+    // [-0, +1, m]
+    // http://www.lua.org/manual/5.3/manual.html#lua_newthread
+    // lua-5.3.4/src/lstate.c#lua_newthread()
+    pub fn newThread(self: *LuaState) LuaError!*LuaState {
+        const lv_thread = self.gc.createLVLuaState(self.registry);
+        const t = lv_thread.asThread();
+        const stack = try self.allocator.create(LuaStack);
+        stack.* = try LuaStack.init(self.allocator, LUA_MINSTACK, t);
+        t.pushLuaStack(stack);
+        try self.stack.?.push(lv_thread);
+        return t;
+    }
+
+    // [-?, +?, –]
+    // http://www.lua.org/manual/5.3/manual.html#lua_resume
+    pub fn Resume(self: *LuaState, from: *LuaState, n_args: i32) LuaError!ThreadStatus {
+        const ls_from = from;
+
+        if (ls_from.co_chan == null) {
+            ls_from.co_chan = try Channel.create(self.allocator);
+        }
+
+        if (self.co_chan) |co_chan| {
+            // resume coroutine
+            if (self.co_status != .lua_yield) {
+                try self.pushString("cannot resume non-suspended coroutine");
+                return .lua_errrun;
+            }
+            self.co_status = .lua_ok;
+            co_chan.send(1);
+        } else {
+            // create coroutine
+            self.co_chan = try Channel.create(self.allocator);
+            self.co_caller = ls_from;
+
+            if (Thread.spawn(.{}, coroutineEntry, .{ self, n_args })) |thread| {
+                self.co_thread = thread;
+            } else |err| {
+                std.debug.print("{s}", .{@errorName(err)});
+                return LuaError.Panic;
+            }
+        }
+
+        _ = ls_from.co_chan.?.recv(); // wait for resume or yield
+        return self.co_status;
+    }
+
+    fn coroutineEntry(self: *LuaState, n_args: i32) LuaError!void {
+        self.co_status = self.pCall(n_args, -1, 0);
+        self.co_caller.?.co_chan.?.send(1);
+    }
+
+    // [-?, +?, e]
+    // http://www.lua.org/manual/5.3/manual.html#lua_yield
+    pub fn yield(self: *LuaState, n_results: i32) LuaError!i32 {
+        _ = n_results;
+        if (self.co_caller == null) {
+            std.debug.print("attempt to yield from outside a coroutine", .{});
+            try self.pushString("attempt to yield from outside a coroutine");
+            return LuaError.Panic;
+        }
+
+        self.co_status = .lua_yield;
+        self.co_caller.?.co_chan.?.send(1);
+        _ = self.co_chan.?.recv();
+
+        return self.getTop();
+    }
+
+    // [-0, +0, –]
+    // http://www.lua.org/manual/5.3/manual.html#lua_isyieldable
+    pub fn isYieldable(self: *LuaState) bool {
+        if (self.isMainThread()) {
+            return false;
+        }
+        return self.co_status != .lua_yield;
+    }
+
+    // [-0, +0, –]
+    // http://www.lua.org/manual/5.3/manual.html#lua_status
+    // lua-5.3.4/src/lapi.c#lua_status()
+    pub fn Status(self: *LuaState) ThreadStatus {
+        return self.co_status;
+    }
+
+    // debug
+    pub fn getStack(self: *LuaState) bool {
+        if (self.stack) |stack| {
+            return stack.prev != null;
+        }
+        return false;
     }
 };

@@ -55,6 +55,8 @@ def main():
         "ch18-factor": "zig build ch18 && .\\zig-out\\bin\\ch18.exe .\\test_data\\factorial.lua",
         "ch19": "zig build ch19 && .\\zig-out\\bin\\ch19.exe .\\test_data\\ch19.lua",
         "ch20": "zig build ch20 && .\\zig-out\\bin\\ch20.exe .\\test_data\\test20.lua",
+        "ch21-perm": "zig build ch21 && .\\zig-out\\bin\\ch21.exe .\\test_data\\21permutation.lua",
+        "ch21": "zig build ch21 && .\\zig-out\\bin\\ch21.exe .\\test_data\\21-example.lua",
     }
 
     # Clear previous outputs and ensure output directory exists

@@ -127,7 +127,10 @@ pub const LuaStack = struct {
     }
 
     pub fn popN(self: *LuaStack, allocator: std.mem.Allocator, n: i32) LuaError![]LuaValue {
+        // Ensure free args memory even unwind stacks by arena
         const vals = try allocator.alloc(LuaValue, @as(usize, @intCast(n)));
+        errdefer allocator.free(vals);
+
         var i = n - 1;
         while (i >= 0) : (i -= 1) {
             vals[@as(usize, @intCast(i))] = try self.pop();

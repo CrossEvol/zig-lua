@@ -688,4 +688,47 @@ pub fn build(b: *std.Build) void {
     // make the two of them run in parallel.
     const ch20_test_step = b.step("ch20-test", "Run tests");
     ch20_test_step.dependOn(&run_ch20_tests.step);
+
+    // Chapter 21 executable
+    const ch21_exe = b.addExecutable(.{
+        .name = "ch21",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/ch21-main.zig"),
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+            .imports = &.{
+                .{ .name = "pcrez", .module = pcrez_mod },
+                .{ .name = "datetime", .module = datetime_mod },
+            },
+        }),
+    });
+
+    b.installArtifact(ch21_exe);
+
+    const run_ch21 = b.addRunArtifact(ch21_exe);
+    const run_ch21_step = b.step("ch21", "Run chapter 21 application");
+    run_ch21_step.dependOn(&run_ch21.step);
+
+    // Make sure ch21 step also installs the executable
+    run_ch21_step.dependOn(b.getInstallStep());
+
+    if (b.args) |args| {
+        run_ch21.addArgs(args);
+    }
+    // Creates an executable that will run `test` blocks from the executable's
+    // root module. Note that test executables only test one module at a time,
+    // hence why we have to create two separate ones.
+    const ch21_tests = b.addTest(.{
+        .root_module = ch21_exe.root_module,
+    });
+
+    // A run step that will run the second test executable.
+    const run_ch21_tests = b.addRunArtifact(ch21_tests);
+
+    // A top level step for running all tests. dependOn can be called multiple
+    // times and since the two run steps do not depend on one another, this will
+    // make the two of them run in parallel.
+    const ch21_test_step = b.step("ch21-test", "Run tests");
+    ch21_test_step.dependOn(&run_ch21_tests.step);
 }

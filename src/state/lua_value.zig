@@ -7,7 +7,6 @@ const Closure = @import("closure.zig").Closure;
 const LuaState = @import("lua_state.zig").LuaState;
 const LuaString = @import("lua_string.zig").LuaString;
 const LuaTable = @import("lua_table.zig").LuaTable;
-const LuaThread = @import("lua_object.zig").LuaThread;
 const Object = @import("lua_object.zig").Object;
 const UpValue = @import("closure.zig").UpValue;
 
@@ -98,8 +97,8 @@ pub const LuaValue = union(LuaValueTag) {
         return LuaString.fromObj(self.obj);
     }
 
-    pub fn asThread(self: *const LuaValue) *LuaThread {
-        return LuaThread.fromObj(self.obj);
+    pub fn asThread(self: *const LuaValue) *LuaState {
+        return LuaState.fromObj(self.obj);
     }
 
     pub fn mark(self: *const LuaValue) void {
@@ -165,6 +164,7 @@ pub fn typeOf(val: LuaValue) LuaType {
             .string => .lua_t_string,
             .lua_table => .lua_t_table,
             .closure => .lua_t_function,
+            .lua_state => .lua_t_thread,
             else => @panic("todo!"),
         },
     };

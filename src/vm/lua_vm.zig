@@ -17,7 +17,7 @@ const FuncReg = @import("../state/root.zig").FuncReg;
 const string = []const u8;
 
 pub const LuaVM = struct {
-    ls: *LuaState,
+    ls: *LuaState, // managed by gcs
 
     // memory management
     allocator: std.mem.Allocator,
@@ -28,7 +28,7 @@ pub const LuaVM = struct {
         gc.* = GC.init(allocator);
         errdefer allocator.destroy(gc);
 
-        const ls = try LuaState.create(allocator, gc);
+        const ls = gc.createLVLuaState(null).asThread();
 
         gc.lua_state = ls;
 
@@ -40,6 +40,7 @@ pub const LuaVM = struct {
     }
 
     pub fn of(ls: *LuaState) LuaVM {
+        ls.gc.lua_state = ls;
         return .{
             .ls = ls,
             .allocator = ls.allocator,
@@ -48,9 +49,6 @@ pub const LuaVM = struct {
     }
 
     pub fn deinit(self: *LuaVM) void {
-        self.ls.deinit(self.allocator);
-        self.allocator.destroy(self.ls);
-
         self.gc.deinit();
         self.allocator.destroy(self.gc);
     }
@@ -188,6 +186,12 @@ pub const LuaVM = struct {
     }
 
     // [-0, +0, –]
+    // http://www.lua.org/manual/5.3/manual.html#lua_tothread
+    pub fn toThread(self: *LuaVM, idx: i32) ?*LuaState {
+        return self.ls.toThread(idx);
+    }
+
+    // [-0, +0, –]
     // http://www.lua.org/manual/5.3/manual.html#lua_topointer
     pub fn toPointer(self: *LuaVM, idx: i32) LuaValue {
         return self.ls.toPointer(idx);
@@ -261,6 +265,12 @@ pub const LuaVM = struct {
         try self.ls.setTop(idx);
     }
 
+    // [-?, +?, –]
+    // http://www.lua.org/manual/5.3/manual.html#lua_xmove
+    pub fn xMove(self: *LuaVM, to: *LuaState, n: i32) LuaError!void {
+        try self.ls.xMove(to, n);
+    }
+
     /// **************************  api_push  **************************
 
     // [-0, +1, –]
@@ -315,6 +325,12 @@ pub const LuaVM = struct {
     // http://www.lua.org/manual/5.3/manual.html#lua_pushglobaltable
     pub fn pushGlobalTable(self: *LuaVM) LuaError!void {
         try self.ls.pushGlobalTable();
+    }
+
+    // [-0, +1, –]
+    // http://www.lua.org/manual/5.3/manual.html#lua_pushthread
+    pub fn pushThread(self: *LuaVM) LuaError!bool {
+        return self.ls.pushThread();
     }
 
     /// **************************  api_arith  **************************
@@ -722,5 +738,44 @@ pub const LuaVM = struct {
 
     pub fn typeError(self: *LuaVM, arg: i32, t_name: string) LuaError!i32 {
         return try self.ls.typeError(arg, t_name);
+    }
+
+    /// **************************  api_coroutine  **************************
+
+    // [-0, +1, m]
+    // http://www.lua.org/manual/5.3/manual.html#lua_newthread
+    // lua-5.3.4/src/lstate.c#lua_newthread()
+    pub fn newThread(self: *LuaVM) LuaError!*LuaState {
+        return try self.ls.newThread();
+    }
+
+    // [-?, +?, –]
+    // http://www.lua.org/manual/5.3/manual.html#lua_resume
+    pub fn Resume(self: *LuaVM, from: *LuaState, n_args: i32) LuaError!i32 {
+        return try self.ls.Resume(from, n_args);
+    }
+
+    // [-?, +?, e]
+    // http://www.lua.org/manual/5.3/manual.html#lua_yield
+    pub fn yield(self: *LuaVM, n_results: i32) LuaError!i32 {
+        return try self.ls.yield(n_results);
+    }
+
+    // [-0, +0, –]
+    // http://www.lua.org/manual/5.3/manual.html#lua_isyieldable
+    pub fn isYieldable(self: *LuaVM) bool {
+        return try self.ls.isYieldable();
+    }
+
+    // [-0, +0, –]
+    // http://www.lua.org/manual/5.3/manual.html#lua_status
+    // lua-5.3.4/src/lapi.c#lua_status()
+    pub fn Status(self: *LuaVM) i32 {
+        return try self.ls.status();
+    }
+
+    // debug
+    pub fn getStack(self: *LuaVM) bool {
+        return try self.ls.getStack();
     }
 };

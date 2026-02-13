@@ -1,5 +1,6 @@
 const _ = @import("lib_math.zig");
 pub const openBaseLib = @import("lib_basic.zig").openBaseLib;
+pub const openCoroutineLib = @import("lib_coroutine.zig").openCoroutineLib;
 pub const openMathLib = @import("lib_math.zig").openMathLib;
 pub const openOSLib = @import("lib_os.zig").openOSLib;
 pub const openPackageLib = @import("lib_package.zig").openPackageLib;
