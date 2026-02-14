@@ -1,0 +1,167 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build-ch04-debug",
+            "type": "shell",
+            "command": "zig",
+            "args": [
+                "build",
+                "ch04",
+                "-Doptimize=Debug"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "build-ch03-debug",
+            "type": "shell",
+            "command": "zig",
+            "args": [
+                "build",
+                "ch03",
+                "-Doptimize=Debug"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "build-ch02-debug",
+            "type": "shell",
+            "command": "zig",
+            "args": [
+                "build",
+                "ch02",
+                "-Doptimize=Debug"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "build-ch07-debug",
+            "type": "shell",
+            "command": "zig",
+            "args": [
+                "build",
+                "ch07",
+                "-Doptimize=Debug"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "build-ch10-debug",
+            "type": "shell",
+            "command": "zig",
+            "args": [
+                "build",
+                "ch10",
+                "-Doptimize=Debug"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "build-ch13-debug",
+            "type": "shell",
+            "command": "zig",
+            "args": [
+                "build",
+                "ch13",
+                "-Doptimize=Debug"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "build-ch16-debug",
+            "type": "shell",
+            "command": "zig",
+            "args": [
+                "build",
+                "ch16",
+                "-Doptimize=Debug"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "build-ch18-debug",
+            "type": "shell",
+            "command": "zig",
+            "args": [
+                "build",
+                "ch18",
+                "-Doptimize=Debug"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "build-ch19-debug",
+            "type": "shell",
+            "command": "zig",
+            "args": [
+                "build",
+                "ch19",
+                "-Doptimize=Debug"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        }
+    ]
+}

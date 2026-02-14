@@ -33,14 +33,14 @@ def main():
     """
     # Hardcoded test commands for each chapter
     test_commands = {
-        "ch02": "zig build ch02 && .\\zig-out\\bin\\ch02.exe .\\test_data\\luac.out",
-        "ch03": "zig build ch03 && .\\zig-out\\bin\\ch03.exe .\\test_data\\luac.out",
+        "ch02": "zig build ch02 && .\\zig-out\\bin\\ch02.exe .\\test_data\\luac.luac",
+        "ch03": "zig build ch03 && .\\zig-out\\bin\\ch03.exe .\\test_data\\luac.luac",
         "ch04": "zig build ch04",
         "ch05": "zig build ch05",
-        "ch06": "zig build ch06 && .\\zig-out\\bin\\ch06.exe .\\test_data\\sum.out",
-        "ch07": "zig build ch07 && .\\zig-out\\bin\\ch07.exe .\\test_data\\test.out",
+        "ch06": "zig build ch06 && .\\zig-out\\bin\\ch06.exe .\\test_data\\sum.luac",
+        "ch07": "zig build ch07 && .\\zig-out\\bin\\ch07.exe .\\test_data\\test.luac",
         "ch08": "zig build ch08 && .\\zig-out\\bin\\ch08.exe .\\test_data\\test08.luac",
-        "ch09": "zig build ch09 && .\\zig-out\\bin\\ch09.exe .\\test_data\\luac.out",
+        "ch09": "zig build ch09 && .\\zig-out\\bin\\ch09.exe .\\test_data\\luac.luac",
         "ch10": "zig build ch10 && .\\zig-out\\bin\\ch10.exe .\\test_data\\test10.luac",
         "ch11": "zig build ch11 && .\\zig-out\\bin\\ch11.exe .\\test_data\\vector.luac",
         "ch12": "zig build ch12 && .\\zig-out\\bin\\ch12.exe .\\test_data\\test12.luac",

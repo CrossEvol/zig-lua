@@ -3,8 +3,7 @@ zig-out/
 *.o
 .vscode/**
 !.vscode/launch.json
-test_data
-
+!.vscode/tasks.json
 
 ####################### for C 
 # Prerequisites
